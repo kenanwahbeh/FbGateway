@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("FbGateway")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+f93b114b5de4bf330e065ce569b6e3d80ff0b96a")]
 [assembly: System.Reflection.AssemblyProductAttribute("FbGateway")]
 [assembly: System.Reflection.AssemblyTitleAttribute("FbGateway")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
