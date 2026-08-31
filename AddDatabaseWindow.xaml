@@ -1,0 +1,142 @@
+<Window x:Class="FbGateway.AddDatabaseWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Database Connection"
+        Width="620"
+        Height="620"
+        MinWidth="520"
+        MinHeight="500"
+        WindowStartupLocation="CenterOwner"
+        ResizeMode="CanResize">
+
+    <Grid Margin="24">
+
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
+        </Grid.RowDefinitions>
+
+        <TextBlock x:Name="TitleTextBlock"
+                   Text="Add Data"
+                   FontSize="26"
+                   FontWeight="Bold"/>
+
+        <ScrollViewer x:Name="FormScrollViewer"
+                      Grid.Row="1"
+                      Margin="0,24,0,20"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+
+            <StackPanel>
+
+                <TextBlock Text="Connection Name"
+                           FontSize="15"
+                           FontWeight="SemiBold"/>
+
+                <TextBox x:Name="NameTextBox"
+                         Margin="0,8,0,18"
+                         Padding="10"
+                         GotKeyboardFocus="TextBox_GotKeyboardFocus"/>
+
+                <TextBlock Text="Server"
+                           FontSize="15"
+                           FontWeight="SemiBold"/>
+
+                <TextBox x:Name="ServerTextBox"
+                         Text="localhost"
+                         Margin="0,8,0,18"
+                         Padding="10"
+                         GotKeyboardFocus="TextBox_GotKeyboardFocus"/>
+
+                <TextBlock Text="Port"
+                           FontSize="15"
+                           FontWeight="SemiBold"/>
+
+                <TextBox x:Name="PortTextBox"
+                         Text="3050"
+                         Margin="0,8,0,18"
+                         Padding="10"
+                         GotKeyboardFocus="TextBox_GotKeyboardFocus"/>
+
+                <TextBlock Text="Username"
+                           FontSize="15"
+                           FontWeight="SemiBold"/>
+
+                <TextBox x:Name="UsernameTextBox"
+                         Text="SYSDBA"
+                         Margin="0,8,0,18"
+                         Padding="10"
+                         GotKeyboardFocus="TextBox_GotKeyboardFocus"/>
+
+                <TextBlock Text="Password"
+                           FontSize="15"
+                           FontWeight="SemiBold"/>
+
+                <PasswordBox x:Name="PasswordBox"
+                             Margin="0,8,0,18"
+                             Padding="10"/>
+
+                <TextBlock Text="This is the Firebird password."
+                           FontSize="12"
+                           Foreground="Gray"
+                           TextWrapping="Wrap"
+                           Margin="0,-12,0,18"/>
+
+                <TextBlock Text="Database"
+                           FontSize="15"
+                           FontWeight="SemiBold"/>
+
+                <TextBox x:Name="DatabaseTextBox"
+                         Margin="0,8,0,8"
+                         Padding="10"
+                         GotKeyboardFocus="TextBox_GotKeyboardFocus"/>
+
+                <TextBlock Text="Enter the Firebird database alias or database path."
+                           FontSize="12"
+                           Foreground="Gray"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,20"/>
+
+                <Border x:Name="TestResultBorder"
+                        Padding="12"
+                        Margin="0,0,0,10"
+                        Visibility="Collapsed">
+
+                    <TextBlock x:Name="TestResultTextBlock"
+                               TextWrapping="Wrap"
+                               FontSize="14"/>
+
+                </Border>
+
+            </StackPanel>
+
+        </ScrollViewer>
+
+        <StackPanel Grid.Row="2"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right">
+
+            <Button x:Name="TestButton"
+                    Content="Test Connection"
+                    Padding="16,9"
+                    Margin="0,0,10,0"
+                    Click="TestButton_Click"/>
+
+            <Button x:Name="CancelButton"
+                    Content="Cancel"
+                    Padding="18,9"
+                    Margin="0,0,10,0"
+                    Click="CancelButton_Click"/>
+
+            <Button x:Name="SaveButton"
+                    Content="Save"
+                    Padding="24,9"
+                    IsDefault="True"
+                    Click="SaveButton_Click"/>
+
+        </StackPanel>
+
+    </Grid>
+
+</Window>
