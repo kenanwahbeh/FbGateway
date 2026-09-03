@@ -13,6 +13,8 @@ file is the single source of truth for what shipped.
 
 ## [Unreleased]
 
+## [1.0.0] - 2026-09-03
+
 ### Added
 
 - **HTTP gateway** over the configured Firebird connections, bound to
@@ -63,4 +65,5 @@ file is the single source of truth for what shipped.
   `C:\ProgramData\FbGateway`, is carried over automatically on first
   start; the old file is left behind as a backup.
 
-[Unreleased]: https://github.com/kenanwahbeh/FbGateway/commits/main
+[Unreleased]: https://github.com/kenanwahbeh/FbGateway/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/kenanwahbeh/FbGateway/releases/tag/v1.0.0
