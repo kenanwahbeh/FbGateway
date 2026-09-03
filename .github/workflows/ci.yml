@@ -4,9 +4,13 @@ name: CI
 # platform it ships on: the app is WPF, and the gateway's HttpListener
 # error handling is written against Windows error codes.
 #
-# The live Firebird tests are skipped here because no Firebird server is
-# installed on the runner. To run them, point EASYFBSOFT_TEST_FIREBIRD at
-# one:
+# The live Firebird tests are skipped in that job -- there is no server on
+# a Windows runner -- so a second job runs them on Linux against Firebird
+# in a service container. The test project targets plain net10.0, not
+# net10.0-windows, so it runs there unchanged.
+#
+# To run them on your own machine, point EASYFBSOFT_TEST_FIREBIRD at a
+# server:
 #
 #   $env:EASYFBSOFT_TEST_FIREBIRD = "127.0.0.1:3050:SYSDBA:masterkey:C:\db\test.fdb"
 #   dotnet test tests/EasyFbSoft.Tests
@@ -30,7 +34,7 @@ permissions:
 
 jobs:
   test:
-    name: Build and test
+    name: Build and test (Windows)
     runs-on: windows-latest
 
     steps:
@@ -62,5 +66,62 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: test-results
+          path: artifacts/tests/*.trx
+          if-no-files-found: warn
+
+  firebird:
+    name: Live Firebird tests (Linux)
+    runs-on: ubuntu-latest
+
+    services:
+      firebird:
+        image: firebirdsql/firebird:4
+        ports:
+          - 3050:3050
+        env:
+          FIREBIRD_ROOT_PASSWORD: masterkey
+          FIREBIRD_DATABASE: test.fdb
+          # Without this the database is created with charset NONE and
+          # the non-ASCII assertions come back mangled.
+          FIREBIRD_DATABASE_DEFAULT_CHARSET: UTF8
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v7
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Wait for Firebird
+        run: |
+          for attempt in $(seq 1 30); do
+            if (echo > /dev/tcp/127.0.0.1/3050) 2>/dev/null; then
+              echo "Firebird is accepting connections after ${attempt}s."
+              exit 0
+            fi
+            sleep 1
+          done
+
+          echo "Firebird never opened port 3050."
+          exit 1
+
+      # Only the test project: the WPF app cannot build on Linux.
+      - name: Test
+        env:
+          EASYFBSOFT_TEST_FIREBIRD: 127.0.0.1:3050:SYSDBA:masterkey:/var/lib/firebird/data/test.fdb
+        run: >
+          dotnet test tests/EasyFbSoft.Tests/EasyFbSoft.Tests.csproj
+          -c Release
+          --filter "Category=Firebird"
+          --logger "trx;LogFileName=firebird.trx"
+          --results-directory artifacts/tests
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: firebird-test-results
           path: artifacts/tests/*.trx
           if-no-files-found: warn

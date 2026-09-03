@@ -156,9 +156,12 @@ dotnet test tests/EasyFbSoft.Tests
 It creates its own `EFS_TEST_CUSTOMERS` table and works only on rows it
 owns, but point it at a scratch database rather than anything real.
 
-[CI](.github/workflows/ci.yml) runs the build and the suite on
-`windows-latest` for every push and pull request. The live Firebird
-tests skip there, since the runner has no Firebird.
+[CI](.github/workflows/ci.yml) runs on every push and pull request, in
+two jobs: the build and the whole suite on `windows-latest`, where the
+live Firebird tests skip for want of a server, and those same tests on
+`ubuntu-latest` against Firebird 4 in a service container. The test
+project targets plain `net10.0`, so it runs on Linux unchanged even
+though the app itself is Windows-only.
 
 ## Versioning
 
