@@ -161,6 +161,51 @@ jobs:
           path: artifacts/*
           if-no-files-found: error
 
+      - name: Compose release notes
+        shell: pwsh
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+
+          # The section for this version runs from its heading to the
+          # next version heading or the link block at the foot of the
+          # file, whichever comes first.
+          $pattern = '(?ms)^##\s*\[' + [regex]::Escape($version) +
+            '\][^\r\n]*\r?\n(.*?)(?=^##\s*\[|^\[[^\]]+\]:\s*http|\z)'
+
+          $found = [regex]::Match((Get-Content CHANGELOG.md -Raw), $pattern)
+
+          if ($found.Success) {
+            $section = $found.Groups[1].Value.Trim()
+          } else {
+            $section = ''
+          }
+
+          if (-not $section) {
+            $message = "CHANGELOG.md has no notes under '## [$version]'. " +
+              "Run scripts/new-release.ps1 -Version $version before tagging."
+
+            # A tagged release without notes is a mistake worth stopping
+            # for; a manual run is a packaging test, so it only warns.
+            if ($env:GITHUB_REF_TYPE -eq 'tag') { throw $message }
+
+            Write-Host "::warning::$message"
+          }
+
+          $install = (Get-Content .github/release-notes-template.md -Raw).
+            Replace('{{VERSION}}', $version).
+            Replace('{{TAG}}', "v$version")
+
+          if ($section) {
+            $notes = "## What changed`n`n$section`n`n---`n`n$install"
+          } else {
+            $notes = $install
+          }
+
+          Set-Content release-notes.md $notes -Encoding utf8
+
+          Write-Host "----- release body -----"
+          Get-Content release-notes.md | Write-Host
+
       - name: Publish GitHub Release
         if: github.ref_type == 'tag'
         shell: pwsh
@@ -170,17 +215,13 @@ jobs:
           $tag = $env:GITHUB_REF_NAME
           $files = (Get-ChildItem artifacts -File).FullName
 
-          $notes = (Get-Content .github/release-notes-template.md -Raw).
-            Replace('{{VERSION}}', '${{ steps.version.outputs.version }}').
-            Replace('{{TAG}}', $tag)
-
-          Set-Content release-notes.md $notes -Encoding utf8
-
           gh release view $tag *> $null
 
           if ($LASTEXITCODE -eq 0) {
             Write-Host "Release $tag already exists; replacing its assets."
             gh release upload $tag $files --clobber
           } else {
-            gh release create $tag $files --title "Easy FB Soft $tag" --notes-file release-notes.md
+            gh release create $tag $files `
+              --title "Easy FB Soft $tag" `
+              --notes-file release-notes.md
           }

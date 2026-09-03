@@ -10,6 +10,9 @@
 ;   iscc /DAppVersion=1.2.3 /DPublishDir=publish-fx ^
 ;        /DVariant=-framework /DRequireRuntime=1 installer\EasyFbSoft.iss
 ;
+; PublishDir is named relative to the repo root; the script adds the
+; ..\ itself.
+;
 ; AppId identifies the product across every release and both
 ; distributions, so a machine ends up with one Easy FB Soft rather
 ; than two competing installs. It must never change.
@@ -55,11 +58,13 @@ ArchitecturesInstallIn64BitMode=x64compatible
 ; Matches the MSI's floor and the app's own requirements.
 MinVersion=6.3
 
-SetupIconFile=installer\EasyFbSoft.ico
+; Paths here are relative to this .iss file, not to the directory
+; ISCC was launched from, so the repo root is one level up.
+SetupIconFile=EasyFbSoft.ico
 UninstallDisplayIcon={app}\{#AppExeName}
 UninstallDisplayName={#AppName}
 
-OutputDir=artifacts
+OutputDir=..\artifacts
 OutputBaseFilename=EasyFbSoft-{#AppVersion}-x64{#Variant}-setup
 
 ; The bundled build is a self-contained .NET tree, so it compresses
@@ -78,7 +83,7 @@ Name: "desktopicon"; \
   Flags: unchecked
 
 [Files]
-Source: "{#PublishDir}\*"; \
+Source: "..\{#PublishDir}\*"; \
   DestDir: "{app}"; \
   Flags: ignoreversion recursesubdirs createallsubdirs
 
