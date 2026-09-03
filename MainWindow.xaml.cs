@@ -7,12 +7,15 @@ using System.Windows.Media;
 using FirebirdSql.Data.FirebirdClient;
 using FbGateway.Configuration;
 using FbGateway.Data;
+using FbGateway.Gateway;
 
 namespace FbGateway;
 
 public partial class MainWindow : Window
 {
     private readonly SqliteDatabase _database;
+
+    private readonly GatewayServer _gateway;
 
     private List<DatabaseConfig> _connections = new();
 
@@ -22,7 +25,212 @@ public partial class MainWindow : Window
 
         _database = new SqliteDatabase();
 
+        _gateway = new GatewayServer(_database);
+
+        GatewayPortTextBox.Text =
+            _gateway.Config.Port.ToString();
+
         LoadConnections();
+
+        UpdateGatewayUi();
+    }
+
+    /*
+     * Autostart happens after the window is up so a failure can
+     * be reported in a dialog the user actually sees.
+     *
+     * A gateway that fails to start silently is the whole reason
+     * a tunnel pointed at this machine returns 502.
+     */
+    private void Window_Loaded(
+        object sender,
+        RoutedEventArgs e)
+    {
+        if (_gateway.Config.AutoStart &&
+            !_gateway.IsRunning)
+        {
+            StartGateway();
+        }
+    }
+
+    private void Window_Closed(
+        object sender,
+        EventArgs e)
+    {
+        _gateway.Dispose();
+    }
+
+    private void GatewayToggleButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        if (_gateway.IsRunning)
+        {
+            _gateway.Stop();
+
+            var stopped = _database.GetGatewayConfig();
+
+            stopped.AutoStart = false;
+
+            _database.SaveGatewayConfig(stopped);
+
+            UpdateGatewayUi();
+
+            return;
+        }
+
+        StartGateway();
+    }
+
+    private void StartGateway()
+    {
+        var portText =
+            GatewayPortTextBox.Text.Trim();
+
+        if (!int.TryParse(portText, out var port) ||
+            port < 1 ||
+            port > 65535)
+        {
+            MessageBox.Show(
+                "Please enter a valid port between 1 and 65535.",
+
+                "FbGateway",
+
+                MessageBoxButton.OK,
+
+                MessageBoxImage.Warning);
+
+            return;
+        }
+
+        var config = _database.GetGatewayConfig();
+
+        config.Port = port;
+        config.AutoStart = true;
+
+        try
+        {
+            _gateway.Start(config);
+
+            _database.SaveGatewayConfig(config);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"The gateway could not start.\n\n{ex.Message}",
+
+                "Gateway Failed",
+
+                MessageBoxButton.OK,
+
+                MessageBoxImage.Warning);
+        }
+        finally
+        {
+            UpdateGatewayUi();
+        }
+    }
+
+    private void CopyKeyButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        try
+        {
+            Clipboard.SetText(_gateway.Config.ApiKey);
+
+            MessageBox.Show(
+                "API key copied.\n\n" +
+                "Send it on every request as the X-API-Key header.",
+
+                "FbGateway",
+
+                MessageBoxButton.OK,
+
+                MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show(
+                $"The key could not be copied.\n\n{ex.Message}",
+
+                "FbGateway",
+
+                MessageBoxButton.OK,
+
+                MessageBoxImage.Warning);
+        }
+    }
+
+    private void RegenerateKeyButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        var confirm =
+            MessageBox.Show(
+                "Generate a new API key?\n\n" +
+                "Every client still using the current key will be " +
+                "rejected until it is updated.",
+
+                "New API Key",
+
+                MessageBoxButton.YesNo,
+
+                MessageBoxImage.Warning);
+
+        if (confirm != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        _gateway.UpdateApiKey(
+            _database.RegenerateApiKey());
+
+        MessageBox.Show(
+            "A new API key was generated.\n\n" +
+            "Use Copy API Key to put it on the clipboard.",
+
+            "FbGateway",
+
+            MessageBoxButton.OK,
+
+            MessageBoxImage.Information);
+    }
+
+    private void UpdateGatewayUi()
+    {
+        var config = _gateway.Config;
+
+        if (_gateway.IsRunning)
+        {
+            GatewayStatusTextBlock.Text =
+                $"● Running — {config.BaseUrl}";
+
+            GatewayStatusTextBlock.Foreground =
+                Brushes.Green;
+
+            GatewayHintTextBlock.Text =
+                "Point the tunnel here:  " +
+                $"cloudflared tunnel --url {config.BaseUrl}";
+
+            GatewayToggleButton.Content = "Stop";
+        }
+        else
+        {
+            GatewayStatusTextBlock.Text = "● Stopped";
+
+            GatewayStatusTextBlock.Foreground =
+                Brushes.Red;
+
+            GatewayHintTextBlock.Text =
+                "Nothing is listening. A Cloudflare tunnel pointed " +
+                "at this machine will return 502 until the gateway starts.";
+
+            GatewayToggleButton.Content = "Start";
+        }
+
+        GatewayPortTextBox.IsEnabled =
+            !_gateway.IsRunning;
     }
 
     private void LoadConnections()
