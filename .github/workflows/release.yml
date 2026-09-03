@@ -1,0 +1,164 @@
+name: Release
+
+# Push a tag to cut a release:
+#
+#   git tag v1.0.0 && git push origin v1.0.0
+#
+# That builds the app on Windows, packages an .msi and an .exe
+# installer, and attaches both to a GitHub Release.
+#
+# Running this workflow manually instead builds the same installers
+# and leaves them as workflow artifacts without publishing a release,
+# which is the safe way to test a change to the packaging.
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build, without the leading v (e.g. 1.0.0)'
+        required: true
+        default: '0.0.0'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build installers
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Resolve version
+        id: version
+        shell: pwsh
+        run: |
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            $version = $env:GITHUB_REF_NAME -replace '^v', ''
+          } else {
+            $version = '${{ inputs.version }}'
+          }
+
+          # An MSI ProductVersion has to be purely numeric, so a
+          # pre-release suffix (1.2.3-beta.1) is trimmed for the MSI
+          # while the artifact file names keep the full version.
+          $msiVersion = ($version -split '-')[0]
+
+          if ($msiVersion -notmatch '^\d+(\.\d+){0,3}$') {
+            throw "Version '$version' does not begin with a numeric version."
+          }
+
+          "version=$version"       >> $env:GITHUB_OUTPUT
+          "msiVersion=$msiVersion" >> $env:GITHUB_OUTPUT
+
+          Write-Host "Building $version (MSI ProductVersion $msiVersion)"
+
+      - name: Publish (win-x64, self-contained)
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+
+          dotnet publish FbGateway.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:Version=${{ steps.version.outputs.msiVersion }} `
+            -o publish
+
+          if (-not (Test-Path publish/FbGateway.exe)) {
+            throw "publish/FbGateway.exe is missing; the publish step produced nothing to package."
+          }
+
+      - name: Build MSI
+        shell: pwsh
+        run: |
+          dotnet tool install --global wix --version 6.0.2
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Host "wix install exited $LASTEXITCODE; checking whether it is already available."
+            $global:LASTEXITCODE = 0
+          }
+
+          $env:PATH += ";$env:USERPROFILE\.dotnet\tools"
+
+          # Fails the step with a clear message if the tool is not usable.
+          wix --version
+
+          wix build installer/Package.wxs `
+            -arch x64 `
+            -d Version=${{ steps.version.outputs.msiVersion }} `
+            -d PublishDir=publish `
+            -o artifacts/FbGateway-${{ steps.version.outputs.version }}-x64.msi
+
+      - name: Build EXE installer
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+
+          if (-not (Test-Path $iscc)) {
+            throw "ISCC.exe not found at $iscc"
+          }
+
+          & $iscc /DAppVersion=${{ steps.version.outputs.version }} installer\FbGateway.iss
+
+      - name: Checksums
+        shell: pwsh
+        run: |
+          $msi = @(Get-ChildItem artifacts -Filter *.msi)
+          $exe = @(Get-ChildItem artifacts -Filter *-setup.exe)
+
+          if ($msi.Count -ne 1) { throw "Expected exactly one .msi in artifacts, found $($msi.Count)." }
+          if ($exe.Count -ne 1) { throw "Expected exactly one setup .exe in artifacts, found $($exe.Count)." }
+
+          $lines = Get-ChildItem artifacts -File | ForEach-Object {
+            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)"
+          }
+
+          $lines | Set-Content artifacts/SHA256SUMS.txt -Encoding ascii
+
+          Get-ChildItem artifacts -File |
+            Select-Object Name, @{ n = 'MB'; e = { [math]::Round($_.Length / 1MB, 1) } } |
+            Format-Table | Out-String | Write-Host
+
+      - name: Upload workflow artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: installers
+          path: artifacts/*
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: github.ref_type == 'tag'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $files = (Get-ChildItem artifacts -File).FullName
+
+          $notes = (Get-Content .github/release-notes-template.md -Raw).
+            Replace('{{VERSION}}', '${{ steps.version.outputs.version }}').
+            Replace('{{TAG}}', $tag)
+
+          Set-Content release-notes.md $notes -Encoding utf8
+
+          gh release view $tag *> $null
+
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Release $tag already exists; replacing its assets."
+            gh release upload $tag $files --clobber
+          } else {
+            gh release create $tag $files --title "FbGateway $tag" --notes-file release-notes.md
+          }
