@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Security.Cryptography;
 using Microsoft.Data.Sqlite;
 using FbGateway.Configuration;
 
@@ -59,6 +60,12 @@ public class SqliteDatabase
                 LastTestSuccessful INTEGER NOT NULL DEFAULT 0,
                 LastTestedAt TEXT NULL,
                 ConnectionKey TEXT NOT NULL UNIQUE
+            );
+
+            CREATE TABLE IF NOT EXISTS Settings
+            (
+                SettingKey TEXT NOT NULL PRIMARY KEY,
+                SettingValue TEXT NOT NULL
             );
             """;
 
@@ -317,6 +324,183 @@ public class SqliteDatabase
             id);
 
         command.ExecuteNonQuery();
+    }
+
+    /*
+     * Resolves the "database" field of an API request.
+     *
+     * Callers may address a connection either by its Id or by
+     * its Name, because the Id is a GUID nobody wants to type
+     * into a request body by hand.
+     */
+    public DatabaseConfig? FindConnection(string identifier)
+    {
+        if (string.IsNullOrWhiteSpace(identifier))
+        {
+            return null;
+        }
+
+        var trimmed = identifier.Trim();
+
+        var connections = GetConnections();
+
+        foreach (var connection in connections)
+        {
+            if (string.Equals(
+                    connection.Id,
+                    trimmed,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return connection;
+            }
+        }
+
+        foreach (var connection in connections)
+        {
+            if (string.Equals(
+                    connection.Name,
+                    trimmed,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return connection;
+            }
+        }
+
+        return null;
+    }
+
+    public string? GetSetting(string key)
+    {
+        using var connection = OpenConnection();
+        using var command = connection.CreateCommand();
+
+        command.CommandText = """
+            SELECT SettingValue
+            FROM Settings
+            WHERE SettingKey = $key;
+            """;
+
+        command.Parameters.AddWithValue("$key", key);
+
+        return command.ExecuteScalar() as string;
+    }
+
+    public void SetSetting(string key, string value)
+    {
+        using var connection = OpenConnection();
+        using var command = connection.CreateCommand();
+
+        command.CommandText = """
+            INSERT INTO Settings (SettingKey, SettingValue)
+            VALUES ($key, $value)
+            ON CONFLICT(SettingKey) DO UPDATE
+                SET SettingValue = excluded.SettingValue;
+            """;
+
+        command.Parameters.AddWithValue("$key", key);
+        command.Parameters.AddWithValue("$value", value);
+
+        command.ExecuteNonQuery();
+    }
+
+    /*
+     * Loads the gateway settings, filling in defaults for
+     * anything that has never been saved.
+     *
+     * An API key is minted on first call so the gateway is
+     * never reachable without one.
+     */
+    public GatewayConfig GetGatewayConfig()
+    {
+        var config = new GatewayConfig();
+
+        var host = GetSetting("Gateway.Host");
+
+        if (!string.IsNullOrWhiteSpace(host))
+        {
+            config.Host = host;
+        }
+
+        if (int.TryParse(
+                GetSetting("Gateway.Port"),
+                out var port) &&
+            port >= 1 &&
+            port <= 65535)
+        {
+            config.Port = port;
+        }
+
+        if (int.TryParse(
+                GetSetting("Gateway.MaxRows"),
+                out var maxRows) &&
+            maxRows > 0)
+        {
+            config.MaxRows = maxRows;
+        }
+
+        if (int.TryParse(
+                GetSetting("Gateway.CommandTimeoutSeconds"),
+                out var timeout) &&
+            timeout > 0)
+        {
+            config.CommandTimeoutSeconds = timeout;
+        }
+
+        config.AutoStart =
+            GetSetting("Gateway.AutoStart") != "0";
+
+        var apiKey = GetSetting("Gateway.ApiKey");
+
+        if (string.IsNullOrWhiteSpace(apiKey))
+        {
+            apiKey = GenerateApiKey();
+
+            SetSetting("Gateway.ApiKey", apiKey);
+        }
+
+        config.ApiKey = apiKey;
+
+        return config;
+    }
+
+    public void SaveGatewayConfig(GatewayConfig config)
+    {
+        SetSetting("Gateway.Host", config.Host);
+
+        SetSetting(
+            "Gateway.Port",
+            config.Port.ToString());
+
+        SetSetting(
+            "Gateway.MaxRows",
+            config.MaxRows.ToString());
+
+        SetSetting(
+            "Gateway.CommandTimeoutSeconds",
+            config.CommandTimeoutSeconds.ToString());
+
+        SetSetting(
+            "Gateway.AutoStart",
+            config.AutoStart ? "1" : "0");
+
+        SetSetting("Gateway.ApiKey", config.ApiKey);
+    }
+
+    public string RegenerateApiKey()
+    {
+        var apiKey = GenerateApiKey();
+
+        SetSetting("Gateway.ApiKey", apiKey);
+
+        return apiKey;
+    }
+
+    private static string GenerateApiKey()
+    {
+        return Convert
+            .ToHexString(
+                RandomNumberGenerator.GetBytes(32))
+            .ToLowerInvariant();
     }
 
     private static void AddParameters(
