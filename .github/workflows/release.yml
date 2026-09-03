@@ -40,6 +40,12 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      # A release must not ship from a red commit. The live Firebird
+      # tests skip here, as they do in CI.
+      - name: Test
+        shell: pwsh
+        run: dotnet test tests/EasyFbSoft.Tests/EasyFbSoft.Tests.csproj -c Release
+
       - name: Resolve version
         id: version
         shell: pwsh
