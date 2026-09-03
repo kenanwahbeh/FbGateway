@@ -187,7 +187,14 @@ if ($LASTEXITCODE -ne 0) { Fail "git add failed." }
 git commit -m "Release $Version"
 if ($LASTEXITCODE -ne 0) { Fail "git commit failed." }
 
-git tag $tag
+<#
+    An annotated tag, not a lightweight one: "git push --follow-tags"
+    -- the command printed below, and the usual way to push a release
+    -- only pushes annotated tags. A lightweight tag would stay on the
+    machine while the push reported success, and no release would ever
+    be built.
+#>
+git tag -a $tag -m "Easy FB Soft $Version"
 if ($LASTEXITCODE -ne 0) { Fail "git tag failed." }
 
 Write-Host "Committed and tagged $tag. Nothing has been pushed." -ForegroundColor Green
