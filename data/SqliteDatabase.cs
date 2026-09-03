@@ -14,21 +14,75 @@ public class SqliteDatabase
 
     public SqliteDatabase()
     {
+        var commonData =
+            Environment.GetFolderPath(
+                Environment.SpecialFolder.CommonApplicationData);
+
         var directory =
-            Path.Combine(
-                Environment.GetFolderPath(
-                    Environment.SpecialFolder.CommonApplicationData),
-                "FbGateway");
+            Path.Combine(commonData, "EasyFbSoft");
 
         Directory.CreateDirectory(directory);
 
         _databasePath =
-            Path.Combine(directory, "fbgateway.db");
+            Path.Combine(directory, "easyfbsoft.db");
+
+        MigrateLegacyDatabase(commonData);
 
         _connectionString =
             $"Data Source={_databasePath}";
 
         Initialize();
+    }
+
+    /*
+     * Carries over the settings file from the name the app shipped
+     * under before it became Easy FB Soft.
+     *
+     * The old file is copied rather than moved, so it stays behind as
+     * a backup and a failed copy cannot lose the only copy of
+     * someone's connections. Runs only when there is no current file,
+     * which makes it a no-op on every later start.
+     */
+    private void MigrateLegacyDatabase(string commonData)
+    {
+        if (File.Exists(_databasePath))
+        {
+            return;
+        }
+
+        var legacy =
+            Path.Combine(commonData, "FbGateway", "fbgateway.db");
+
+        if (!File.Exists(legacy))
+        {
+            return;
+        }
+
+        try
+        {
+            File.Copy(legacy, _databasePath);
+
+            /*
+             * File.Copy carries the source's attributes across, so a
+             * legacy file that had been marked read-only -- restored
+             * from a backup, or copied off a share -- would arrive
+             * read-only and make every later write fail with
+             * "attempt to write a readonly database".
+             */
+            var copied = new FileInfo(_databasePath);
+
+            if (copied.IsReadOnly)
+            {
+                copied.IsReadOnly = false;
+            }
+        }
+        catch (IOException)
+        {
+            // Start with an empty database rather than failing to open.
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
     }
 
     private SqliteConnection OpenConnection()

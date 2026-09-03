@@ -15,15 +15,20 @@
     (-p:Version=...), so the value here is only what a local build
     stamps. Company and Product show up in the installed program's
     Add/Remove Programs entry and in the file properties.
+
+    The C# namespaces are still FbGateway; only the product name and
+    the built executable were renamed, so there is no source churn
+    behind the rename.
   -->
   <PropertyGroup>
-    <AssemblyName>FbGateway</AssemblyName>
-    <Product>FbGateway</Product>
-    <Company>FbGateway</Company>
+    <AssemblyName>EasyFbSoft</AssemblyName>
+    <RootNamespace>FbGateway</RootNamespace>
+    <Product>Easy FB Soft</Product>
+    <Company>Easy FB Soft</Company>
     <Description>HTTP gateway for Firebird databases</Description>
-    <Copyright>Copyright © FbGateway</Copyright>
+    <Copyright>Copyright © Easy FB Soft</Copyright>
     <Version>1.0.0</Version>
-    <ApplicationIcon>installer/FbGateway.ico</ApplicationIcon>
+    <ApplicationIcon>installer/EasyFbSoft.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

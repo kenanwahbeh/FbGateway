@@ -196,7 +196,7 @@ public sealed class GatewayServer : IDisposable
         {
             5 =>
                 $"Windows refused to reserve {config.Prefix}\n\n" +
-                "Either run FbGateway as administrator once, or grant the " +
+                "Either run Easy FB Soft as administrator once, or grant the " +
                 "reservation from an elevated prompt:\n\n" +
                 $"netsh http add urlacl url={config.Prefix} user=\"%USERNAME%\"",
 
@@ -549,7 +549,7 @@ public sealed class GatewayServer : IDisposable
                 409,
                 new ErrorResponse(
                     $"Connection \"{connection.Name}\" is offline. " +
-                    "Turn it online in FbGateway first."));
+                    "Turn it online in Easy FB Soft first."));
 
             return null;
         }
@@ -599,7 +599,7 @@ public sealed class GatewayServer : IDisposable
             new
             {
                 Status = "ok",
-                Service = "FbGateway",
+                Service = "EasyFbSoft",
                 Connections = connections.Count,
                 Online = online,
                 TimeUtc = DateTime.UtcNow

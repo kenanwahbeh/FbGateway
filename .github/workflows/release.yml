@@ -4,8 +4,9 @@ name: Release
 #
 #   git tag v1.0.0 && git push origin v1.0.0
 #
-# That builds the app on Windows, packages an .msi and an .exe
-# installer, and attaches both to a GitHub Release.
+# That builds the app on Windows and attaches four installers to a
+# GitHub Release: an .msi and an .exe that bundle .NET, and an .msi
+# and an .exe that expect the .NET Desktop Runtime on the machine.
 #
 # Running this workflow manually instead builds the same installers
 # and leaves them as workflow artifacts without publishing a release,
@@ -63,23 +64,35 @@ jobs:
 
           Write-Host "Building $version (MSI ProductVersion $msiVersion)"
 
-      - name: Publish (win-x64, self-contained)
+      - name: Publish both distributions
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path artifacts | Out-Null
 
-          dotnet publish FbGateway.csproj `
-            -c Release `
-            -r win-x64 `
-            --self-contained true `
+          # publish    -> .NET bundled, runs on a bare machine
+          # publish-fx -> needs the .NET Desktop Runtime installed
+          dotnet publish EasyFbSoft.csproj `
+            -c Release -r win-x64 --self-contained true `
             -p:Version=${{ steps.version.outputs.msiVersion }} `
             -o publish
 
-          if (-not (Test-Path publish/FbGateway.exe)) {
-            throw "publish/FbGateway.exe is missing; the publish step produced nothing to package."
+          dotnet publish EasyFbSoft.csproj `
+            -c Release -r win-x64 --self-contained false `
+            -p:Version=${{ steps.version.outputs.msiVersion }} `
+            -o publish-fx
+
+          foreach ($dir in 'publish', 'publish-fx') {
+            if (-not (Test-Path "$dir/EasyFbSoft.exe")) {
+              throw "$dir/EasyFbSoft.exe is missing; that publish produced nothing to package."
+            }
+
+            $mb = [math]::Round((Get-ChildItem $dir -Recurse -File |
+              Measure-Object Length -Sum).Sum / 1MB, 1)
+
+            Write-Host "$dir : $((Get-ChildItem $dir -Recurse -File).Count) files, $mb MB"
           }
 
-      - name: Build MSI
+      - name: Build MSIs
         shell: pwsh
         run: |
           dotnet tool install --global wix --version 6.0.2
@@ -94,13 +107,17 @@ jobs:
           # Fails the step with a clear message if the tool is not usable.
           wix --version
 
-          wix build installer/Package.wxs `
-            -arch x64 `
+          wix build installer/Package.wxs -arch x64 `
             -d Version=${{ steps.version.outputs.msiVersion }} `
             -d PublishDir=publish `
-            -o artifacts/FbGateway-${{ steps.version.outputs.version }}-x64.msi
+            -o artifacts/EasyFbSoft-${{ steps.version.outputs.version }}-x64.msi
 
-      - name: Build EXE installer
+          wix build installer/Package.wxs -arch x64 `
+            -d Version=${{ steps.version.outputs.msiVersion }} `
+            -d PublishDir=publish-fx `
+            -o artifacts/EasyFbSoft-${{ steps.version.outputs.version }}-x64-framework.msi
+
+      - name: Build EXE installers
         shell: pwsh
         run: |
           choco install innosetup --no-progress -y
@@ -111,7 +128,12 @@ jobs:
             throw "ISCC.exe not found at $iscc"
           }
 
-          & $iscc /DAppVersion=${{ steps.version.outputs.version }} installer\FbGateway.iss
+          & $iscc /DAppVersion=${{ steps.version.outputs.version }} `
+            installer\EasyFbSoft.iss
+
+          & $iscc /DAppVersion=${{ steps.version.outputs.version }} `
+            /DPublishDir=publish-fx /DVariant=-framework /DRequireRuntime=1 `
+            installer\EasyFbSoft.iss
 
       - name: Checksums
         shell: pwsh
@@ -119,8 +141,8 @@ jobs:
           $msi = @(Get-ChildItem artifacts -Filter *.msi)
           $exe = @(Get-ChildItem artifacts -Filter *-setup.exe)
 
-          if ($msi.Count -ne 1) { throw "Expected exactly one .msi in artifacts, found $($msi.Count)." }
-          if ($exe.Count -ne 1) { throw "Expected exactly one setup .exe in artifacts, found $($exe.Count)." }
+          if ($msi.Count -ne 2) { throw "Expected two .msi files in artifacts, found $($msi.Count)." }
+          if ($exe.Count -ne 2) { throw "Expected two setup .exe files in artifacts, found $($exe.Count)." }
 
           $lines = Get-ChildItem artifacts -File | ForEach-Object {
             "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)"
@@ -130,7 +152,7 @@ jobs:
 
           Get-ChildItem artifacts -File |
             Select-Object Name, @{ n = 'MB'; e = { [math]::Round($_.Length / 1MB, 1) } } |
-            Format-Table | Out-String | Write-Host
+            Format-Table -AutoSize | Out-String | Write-Host
 
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
@@ -160,5 +182,5 @@ jobs:
             Write-Host "Release $tag already exists; replacing its assets."
             gh release upload $tag $files --clobber
           } else {
-            gh release create $tag $files --title "FbGateway $tag" --notes-file release-notes.md
+            gh release create $tag $files --title "Easy FB Soft $tag" --notes-file release-notes.md
           }
