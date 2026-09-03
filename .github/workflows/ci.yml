@@ -1,0 +1,66 @@
+name: CI
+
+# Builds the app and runs the test suite on Windows, which is the only
+# platform it ships on: the app is WPF, and the gateway's HttpListener
+# error handling is written against Windows error codes.
+#
+# The live Firebird tests are skipped here because no Firebird server is
+# installed on the runner. To run them, point EASYFBSOFT_TEST_FIREBIRD at
+# one:
+#
+#   $env:EASYFBSOFT_TEST_FIREBIRD = "127.0.0.1:3050:SYSDBA:masterkey:C:\db\test.fdb"
+#   dotnet test tests/EasyFbSoft.Tests
+#
+# Packaging is not built here; it takes minutes to compress. Run the
+# Release workflow manually to check that.
+
+on:
+  push:
+    branches: [ '**' ]
+  pull_request:
+  workflow_dispatch:
+
+# A newer push to the same ref makes the older run pointless.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Build and test
+    runs-on: windows-latest
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore EasyFbSoft.slnx
+
+      - name: Build
+        run: dotnet build EasyFbSoft.slnx -c Release --no-restore
+
+      - name: Test
+        run: >
+          dotnet test tests/EasyFbSoft.Tests/EasyFbSoft.Tests.csproj
+          -c Release
+          --no-build
+          --logger "trx;LogFileName=results.trx"
+          --results-directory artifacts/tests
+
+      # Kept even when the run fails, since that is when it is wanted.
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: artifacts/tests/*.trx
+          if-no-files-found: warn

@@ -13,9 +13,21 @@ public class SqliteDatabase
     private readonly string _connectionString;
 
     public SqliteDatabase()
+        : this(null)
+    {
+    }
+
+    /*
+     * dataRoot replaces the folder the app stores under, which is
+     * CommonApplicationData in a real install. Tests pass a temporary
+     * directory so they never touch a machine's real settings, and so
+     * the legacy path the migration reads from can be set up too.
+     */
+    public SqliteDatabase(string? dataRoot)
     {
         var commonData =
-            Environment.GetFolderPath(
+            dataRoot
+            ?? Environment.GetFolderPath(
                 Environment.SpecialFolder.CommonApplicationData);
 
         var directory =

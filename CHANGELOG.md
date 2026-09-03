@@ -45,6 +45,17 @@ file is the single source of truth for what shipped.
   get going, [GATEWAY.md](GATEWAY.md) for the API and the tunnel
   configuration.
 
+### Fixed
+
+- A request refused before its body was read -- a wrong API key, an
+  unknown path, the wrong HTTP method -- left the unread bytes in the
+  connection, so the *next* request on that keep-alive connection was
+  parsed from the middle of the previous one and came back as a
+  spurious `400`. Since `cloudflared` holds keep-alive connections to
+  the origin, this surfaced as an unrelated request failing for no
+  visible reason. Small bodies are now drained before the reply and the
+  connection is dropped rather than reused when there is too much left.
+
 ### Notes
 
 - Settings live in `C:\ProgramData\EasyFbSoft\easyfbsoft.db`. A file
