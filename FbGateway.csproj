@@ -8,6 +8,24 @@
     <UseWPF>true</UseWPF>
   </PropertyGroup>
 
+  <!--
+    Shipping metadata.
+
+    Version is overridden by the release workflow from the git tag
+    (-p:Version=...), so the value here is only what a local build
+    stamps. Company and Product show up in the installed program's
+    Add/Remove Programs entry and in the file properties.
+  -->
+  <PropertyGroup>
+    <AssemblyName>FbGateway</AssemblyName>
+    <Product>FbGateway</Product>
+    <Company>FbGateway</Company>
+    <Description>HTTP gateway for Firebird databases</Description>
+    <Copyright>Copyright © FbGateway</Copyright>
+    <Version>1.0.0</Version>
+    <ApplicationIcon>installer/FbGateway.ico</ApplicationIcon>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="FirebirdSql.Data.FirebirdClient" Version="10.3.4" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.11" />
