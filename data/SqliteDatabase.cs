@@ -12,6 +12,12 @@ public class SqliteDatabase
     private readonly string _databasePath;
     private readonly string _connectionString;
 
+    /*
+     * Where the request log is kept, beside the settings file so both
+     * live under one folder an operator can find and back up.
+     */
+    public string LogDirectory { get; }
+
     public SqliteDatabase()
         : this(null)
     {
@@ -37,6 +43,8 @@ public class SqliteDatabase
 
         _databasePath =
             Path.Combine(directory, "easyfbsoft.db");
+
+        LogDirectory = Path.Combine(directory, "logs");
 
         MigrateLegacyDatabase(commonData);
 

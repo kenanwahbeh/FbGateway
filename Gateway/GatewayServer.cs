@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Security.Cryptography;
@@ -78,12 +79,22 @@ public sealed class GatewayServer : IDisposable
 
     private volatile GatewayConfig _config;
 
-    public GatewayServer(SqliteDatabase database)
+    private readonly RequestLog _log;
+
+    public GatewayServer(SqliteDatabase database, RequestLog? log = null)
     {
         _database = database;
 
         _config = database.GetGatewayConfig();
+
+        _log = log ?? new RequestLog(database.LogDirectory);
     }
+
+    /*
+     * The audit trail. Exposed so the window can point someone at it and
+     * show the most recent requests.
+     */
+    public RequestLog Log => _log;
 
     public GatewayConfig Config => _config;
 
@@ -253,6 +264,23 @@ public sealed class GatewayServer : IDisposable
         HttpListenerContext context,
         CancellationToken cancellationToken)
     {
+        var stopwatch = Stopwatch.StartNew();
+
+        var record = new RequestRecord
+        {
+            Method = context.Request.HttpMethod,
+            Path = context.Request.Url?.AbsolutePath ?? "/",
+            LocalPeer = context.Request.RemoteEndPoint?.Address.ToString(),
+
+            /*
+             * Behind a tunnel the socket peer is always cloudflared on
+             * loopback, so the address that identifies the caller comes
+             * from Cloudflare's header instead.
+             */
+            ClientIp = context.Request.Headers["CF-Connecting-IP"]
+                ?? context.Request.Headers["X-Forwarded-For"]?.Split(',')[0].Trim()
+        };
+
         try
         {
             ApplyCorsHeaders(context.Response);
@@ -287,7 +315,9 @@ public sealed class GatewayServer : IDisposable
                 return;
             }
 
-            if (!IsAuthorized(context.Request))
+            record.Authenticated = IsAuthorized(context.Request);
+
+            if (!record.Authenticated)
             {
                 await DrainOrCloseAsync(context);
 
@@ -326,7 +356,7 @@ public sealed class GatewayServer : IDisposable
                         return;
                     }
 
-                    await HandleQueryAsync(context, cancellationToken);
+                    await HandleQueryAsync(context, record, cancellationToken);
                     return;
 
                 case "/execute":
@@ -337,7 +367,7 @@ public sealed class GatewayServer : IDisposable
                         return;
                     }
 
-                    await HandleExecuteAsync(context, cancellationToken);
+                    await HandleExecuteAsync(context, record, cancellationToken);
                     return;
 
                 default:
@@ -356,6 +386,8 @@ public sealed class GatewayServer : IDisposable
         }
         catch (Exception ex)
         {
+            record.Error = ex.Message;
+
             try
             {
                 await WriteJsonAsync(
@@ -372,17 +404,33 @@ public sealed class GatewayServer : IDisposable
         {
             try
             {
+                record.Status = context.Response.StatusCode;
+            }
+            catch
+            {
+                // The response was already disposed.
+            }
+
+            try
+            {
                 context.Response.Close();
             }
             catch
             {
                 // Already closed or the client disconnected.
             }
+
+            stopwatch.Stop();
+
+            record.ElapsedMs = stopwatch.ElapsedMilliseconds;
+
+            _log.Write(record);
         }
     }
 
     private async Task HandleQueryAsync(
         HttpListenerContext context,
+        RequestRecord record,
         CancellationToken cancellationToken)
     {
         var body =
@@ -409,6 +457,14 @@ public sealed class GatewayServer : IDisposable
 
             return;
         }
+
+        /*
+         * The statement is recorded, the parameters are not: the values
+         * are the customer's data, and keeping them separate is the
+         * whole point of binding them.
+         */
+        record.Sql = request.Sql;
+        record.Database = request.Database;
 
         if (!FirebirdExecutor.IsReadOnlyStatement(request.Sql))
         {
@@ -451,10 +507,14 @@ public sealed class GatewayServer : IDisposable
                     config.CommandTimeoutSeconds,
                     cancellationToken);
 
+            record.Rows = result.RowCount;
+
             await WriteJsonAsync(context, 200, result);
         }
         catch (FbException ex)
         {
+            record.Error = ex.Message;
+
             await WriteJsonAsync(
                 context,
                 400,
@@ -464,6 +524,7 @@ public sealed class GatewayServer : IDisposable
 
     private async Task HandleExecuteAsync(
         HttpListenerContext context,
+        RequestRecord record,
         CancellationToken cancellationToken)
     {
         var body =
@@ -491,6 +552,9 @@ public sealed class GatewayServer : IDisposable
             return;
         }
 
+        record.Sql = request.Sql;
+        record.Database = request.Database;
+
         var connection =
             await ResolveConnectionAsync(
                 context,
@@ -511,10 +575,14 @@ public sealed class GatewayServer : IDisposable
                     _config.CommandTimeoutSeconds,
                     cancellationToken);
 
+            record.Rows = result.RowsAffected;
+
             await WriteJsonAsync(context, 200, result);
         }
         catch (FbException ex)
         {
+            record.Error = ex.Message;
+
             await WriteJsonAsync(
                 context,
                 400,

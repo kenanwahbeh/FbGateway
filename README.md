@@ -107,7 +107,12 @@ API key as a database credential.
 - Anything holding the key can run arbitrary SQL against the Online
   connections. If the data is sensitive, put
   [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/policies/access/)
-  in front of the hostname as well.
+  in front of the hostname as well, so callers are authenticated at
+  Cloudflare's edge before a request reaches the machine at all.
+  [GATEWAY.md](GATEWAY.md#locking-the-tunnel-to-just-you) has the setup.
+- Every request, served or rejected, is appended to
+  `C:\ProgramData\EasyFbSoft\logs\`. Bound parameter values are never
+  written; the statement is.
 
 Connections are stored in
 `C:\ProgramData\EasyFbSoft\easyfbsoft.db`. Firebird passwords are kept
