@@ -119,13 +119,46 @@ credentials themselves.
 Needs the .NET 10 SDK and Windows.
 
 ```
-dotnet build EasyFbSoft.csproj
-dotnet run  --project EasyFbSoft.csproj
+dotnet build EasyFbSoft.slnx
+dotnet run --project EasyFbSoft.csproj
 ```
 
 To produce the installers the way the release does, see
 [`.github/workflows/release.yml`](.github/workflows/release.yml). WiX
 and Inno Setup both only run on Windows.
+
+## Tests
+
+```
+dotnet test tests/EasyFbSoft.Tests
+```
+
+The suite drives the gateway over a real socket on a spare port, with
+its settings in a temporary folder, so it never reads or overwrites the
+connections of whoever is running it.
+
+| Area | What it covers |
+| ---- | -------------- |
+| `GatewayServerTests` | Routing, the API key, CORS, body validation, the read-only guard, the size cap, and that an early reply leaves the connection usable. |
+| `GatewayLifecycleTests` | Start, stop, restart, a port already in use, key rotation, and connection changes taking effect without a restart. |
+| `SqliteDatabaseTests` | Storage, duplicate detection, gateway settings, and the migration from the pre-rename location. |
+| `FirebirdExecutorTests` | The read-only guard on its own, including comments, word boundaries and unterminated blocks. |
+| `FirebirdIntegrationTests` | A real server end to end: type mapping, NULLs, UTF-8, parameter binding, the row cap, writes, and concurrency. |
+
+`FirebirdIntegrationTests` is skipped unless you point it at a server,
+so a fresh clone still gets a green run:
+
+```powershell
+$env:EASYFBSOFT_TEST_FIREBIRD = "127.0.0.1:3050:SYSDBA:masterkey:C:\db\test.fdb"
+dotnet test tests/EasyFbSoft.Tests
+```
+
+It creates its own `EFS_TEST_CUSTOMERS` table and works only on rows it
+owns, but point it at a scratch database rather than anything real.
+
+[CI](.github/workflows/ci.yml) runs the build and the suite on
+`windows-latest` for every push and pull request. The live Firebird
+tests skip there, since the runner has no Firebird.
 
 ## Versioning
 

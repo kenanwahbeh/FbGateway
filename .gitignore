@@ -5,9 +5,14 @@ obj/
 # Publish / packaging output
 publish/
 artifacts/
+
+# Test output
+TestResults/
+*.trx
+
+# Built installers
 *.msi
 *.exe
-!installer/**/*.exe
 
 # User-specific
 .vs/

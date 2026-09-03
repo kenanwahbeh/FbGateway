@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/tests/">
+    <Project Path="tests/EasyFbSoft.Tests/EasyFbSoft.Tests.csproj" />
+  </Folder>
+  <Project Path="EasyFbSoft.csproj" />
+</Solution>

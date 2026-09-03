@@ -60,6 +60,12 @@ public sealed class GatewayServer : IDisposable
      */
     private const int MaxDrainBytes = 64 * 1024 * 1024;
 
+    /*
+     * How much of the body is read before answering a request that is
+     * being refused without being parsed.
+     */
+    private const int MaxEarlyDrainBytes = 64 * 1024;
+
     private readonly SqliteDatabase _database;
 
     private readonly object _sync = new();
@@ -283,6 +289,8 @@ public sealed class GatewayServer : IDisposable
 
             if (!IsAuthorized(context.Request))
             {
+                await DrainOrCloseAsync(context);
+
                 await WriteJsonAsync(
                     context,
                     401,
@@ -333,6 +341,8 @@ public sealed class GatewayServer : IDisposable
                     return;
 
                 default:
+
+                    await DrainOrCloseAsync(context);
 
                     await WriteJsonAsync(
                         context,
@@ -606,6 +616,54 @@ public sealed class GatewayServer : IDisposable
             });
     }
 
+    /*
+     * Answering without reading the request body leaves those bytes in
+     * the connection, so the next request on it is parsed from the
+     * middle of this one and comes back as a spurious 400 on a request
+     * that was fine. cloudflared holds keep-alive connections to the
+     * origin, which is exactly where that would show up.
+     *
+     * A refused request is usually small -- a statement sent with the
+     * wrong key -- so draining it is cheap and leaves the connection
+     * reusable and the reply readable. Past the cap the caller is not
+     * worth reading from, and dropping the connection is both safe and
+     * enough: an unauthenticated sender gets no promise of a reply.
+     */
+    private static async Task DrainOrCloseAsync(
+        HttpListenerContext context)
+    {
+        if (!context.Request.HasEntityBody)
+        {
+            return;
+        }
+
+        var buffer = new byte[8192];
+        var total = 0;
+
+        try
+        {
+            while (total <= MaxEarlyDrainBytes)
+            {
+                var read =
+                    await context.Request.InputStream.ReadAsync(buffer);
+
+                if (read == 0)
+                {
+                    // Fully drained; the connection stays usable.
+                    return;
+                }
+
+                total += read;
+            }
+        }
+        catch (IOException)
+        {
+            // The caller went away mid-body; nothing left to tidy.
+        }
+
+        context.Response.KeepAlive = false;
+    }
+
     private bool IsAuthorized(HttpListenerRequest request)
     {
         var expected = _config.ApiKey;
@@ -731,6 +789,8 @@ public sealed class GatewayServer : IDisposable
                  */
                 if (total > MaxDrainBytes)
                 {
+                    context.Response.KeepAlive = false;
+
                     return tooLarge;
                 }
 
@@ -789,14 +849,16 @@ public sealed class GatewayServer : IDisposable
         public bool Failed => Error != null;
     }
 
-    private static Task WriteMethodNotAllowedAsync(
+    private static async Task WriteMethodNotAllowedAsync(
         HttpListenerContext context,
         string allowed)
     {
+        await DrainOrCloseAsync(context);
+
         context.Response.Headers["Allow"] =
             allowed + ", OPTIONS";
 
-        return WriteJsonAsync(
+        await WriteJsonAsync(
             context,
             405,
             new ErrorResponse(
