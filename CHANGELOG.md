@@ -13,6 +13,23 @@ file is the single source of truth for what shipped.
 
 ## [Unreleased]
 
+### Added
+
+- **A request log.** Every request the gateway answers is appended to
+  `C:\ProgramData\EasyFbSoft\logs\gateway-<date>.jsonl`, one JSON
+  object per line: time, method, path, status, duration, the calling
+  address, whether the key was accepted, and for a query the statement,
+  the connection and the row count. Rejected requests are recorded too,
+  which is what an attempt on the API key looks like from the outside.
+  Bound parameter values are never written -- they are the customer's
+  data, and keeping them out of the statement is the point of binding
+  them. Files are kept 30 days. Writing happens after the response is
+  sent, so a slow disk never delays an answer.
+- Documentation for putting **Cloudflare Access** in front of the
+  tunnel hostname, so callers are authenticated at Cloudflare's edge
+  before a request reaches the machine. See
+  [GATEWAY.md](GATEWAY.md#locking-the-tunnel-to-just-you).
+
 ## [1.0.0] - 2026-09-03
 
 ### Added

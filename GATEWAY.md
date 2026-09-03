@@ -155,6 +155,78 @@ Anyone who reaches the hostname can try the API, so treat the key as
 a database credential. Cloudflare Access in front of the hostname is
 worth adding if the data is sensitive.
 
+## The request log
+
+Every request the gateway answers is appended to
+`C:\ProgramData\EasyFbSoft\logs\gateway-<date>.jsonl`, one JSON object
+per line:
+
+```json
+{"at":"2026-09-03T21:40:11.7Z","method":"POST","path":"/query","status":200,
+ "elapsedMs":12,"localPeer":"127.0.0.1","clientIp":"203.0.113.7",
+ "authenticated":true,"database":"Sales",
+ "sql":"SELECT NAME FROM CUSTOMERS WHERE ID = @id","rows":1}
+```
+
+A tunnel puts this listener on the public internet, so "what ran, and
+who asked for it" has to be answerable afterwards -- above all if the
+API key leaks. Rejected requests are recorded too, with
+`"authenticated": false`; a run of those from one address is what an
+attempt on the key looks like.
+
+**Bound parameter values are never written.** The statement is recorded,
+the values are not: they are the customer's data, and keeping them out
+of the statement is the whole point of binding them. The statement is
+truncated past 2000 characters.
+
+`clientIp` comes from Cloudflare's `CF-Connecting-IP` header, since
+behind a tunnel the socket peer is always `cloudflared` on loopback.
+`localPeer` is kept as well: it is the evidence that a request really
+did arrive the expected way.
+
+Files are kept for 30 days and older ones are pruned. Writing happens
+after the response is sent, so a slow disk never delays an answer --
+which does mean the last entries can be lost if the process is killed
+outright.
+
+## Locking the tunnel to just you
+
+The gateway binds to loopback and `cloudflared` reaches it locally, so
+nothing is exposed on the LAN. But the tunnel's hostname is on the
+public internet: anyone who discovers it reaches the API, and the key is
+then the only thing in the way.
+
+[Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/policies/access/)
+closes that gap by authenticating at Cloudflare's edge, before a request
+ever reaches the machine.
+
+For a program rather than a person, use a **service token**:
+
+1. In Zero Trust, go to **Access → Service auth** and create a service
+   token. Keep the Client ID and Client Secret.
+2. Go to **Access → Applications**, add a **Self-hosted** application
+   for the gateway's hostname.
+3. Add a policy with action **Service Auth** and the rule
+   *Service Token* → the token you just made.
+4. Add a second policy with action **Bypass** for the path `/health`
+   only, if you want liveness checks to stay reachable without the
+   token.
+
+Callers then send two extra headers:
+
+```bash
+curl https://<hostname>/query \
+  -H "CF-Access-Client-Id: <client-id>" \
+  -H "CF-Access-Client-Secret: <client-secret>" \
+  -H "X-API-Key: <key>" \
+  -H "Content-Type: application/json" \
+  -d '{ "database": "Sales", "sql": "SELECT 1 FROM RDB$DATABASE" }'
+```
+
+The API key stays in place. Access decides who may reach the gateway at
+all; the key decides what they may do once they have. Losing one still
+leaves the other.
+
 ## Troubleshooting
 
 **502 from the tunnel, or Cloudflare error 1033** — nothing is

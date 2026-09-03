@@ -74,6 +74,8 @@ public sealed class GatewayHarness : IDisposable
 
     public GatewayServer Server { get; }
 
+    public RequestLog Log { get; }
+
     public HttpClient Client { get; }
 
     public string ApiKey { get; private set; }
@@ -119,7 +121,9 @@ public sealed class GatewayHarness : IDisposable
 
         ApiKey = config.ApiKey;
 
-        Server = new GatewayServer(Database);
+        Log = new RequestLog(System.IO.Path.Combine(_root.Path, "logs"));
+
+        Server = new GatewayServer(Database, Log);
         Server.Start(config);
 
         Client = new HttpClient
