@@ -94,7 +94,7 @@ public partial class MainWindow : Window
             MessageBox.Show(
                 "Please enter a valid port between 1 and 65535.",
 
-                "FbGateway",
+                "Easy FB Soft",
 
                 MessageBoxButton.OK,
 
@@ -143,7 +143,7 @@ public partial class MainWindow : Window
                 "API key copied.\n\n" +
                 "Send it on every request as the X-API-Key header.",
 
-                "FbGateway",
+                "Easy FB Soft",
 
                 MessageBoxButton.OK,
 
@@ -154,7 +154,7 @@ public partial class MainWindow : Window
             MessageBox.Show(
                 $"The key could not be copied.\n\n{ex.Message}",
 
-                "FbGateway",
+                "Easy FB Soft",
 
                 MessageBoxButton.OK,
 
@@ -190,7 +190,7 @@ public partial class MainWindow : Window
             "A new API key was generated.\n\n" +
             "Use Copy API Key to put it on the clipboard.",
 
-            "FbGateway",
+            "Easy FB Soft",
 
             MessageBoxButton.OK,
 
@@ -462,7 +462,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 ex.Message,
-                "FbGateway",
+                "Easy FB Soft",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
         }
@@ -494,7 +494,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 ex.Message,
-                "FbGateway",
+                "Easy FB Soft",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
         }
@@ -536,7 +536,7 @@ public partial class MainWindow : Window
             var confirm =
                 MessageBox.Show(
                     $"Turn \"{connection.Name}\" online?\n\n" +
-                    "FbGateway will test the database connection first.",
+                    "Easy FB Soft will test the database connection first.",
 
                     "Turn Online",
 

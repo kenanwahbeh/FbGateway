@@ -1,6 +1,6 @@
-# FbGateway HTTP API
+# Easy FB Soft HTTP API
 
-FbGateway exposes the configured Firebird connections over a small
+Easy FB Soft exposes the configured Firebird connections over a small
 JSON API on loopback, so a Cloudflare Tunnel running on the same
 machine has something to forward requests to.
 
@@ -148,7 +148,7 @@ curl https://fbgateway.example.com/health
 ```
 
 ```json
-{ "status": "ok", "service": "FbGateway", "connections": 2, "online": 1, ... }
+{ "status": "ok", "service": "EasyFbSoft", "connections": 2, "online": 1, ... }
 ```
 
 Anyone who reaches the hostname can try the API, so treat the key as
@@ -179,7 +179,7 @@ tasklist /fi "pid eq <pid>"
 ```
 
 **"Windows refused to reserve ..."** — HTTP.SYS wants a URL
-reservation. Run FbGateway as administrator once, or grant it from
+reservation. Run Easy FB Soft as administrator once, or grant it from
 an elevated prompt:
 
 ```
