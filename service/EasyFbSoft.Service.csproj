@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The Windows service that actually hosts the gateway.
+
+    This is what makes the gateway survive a reboot and run with nobody
+    logged in, which the WPF app never could: it died with its window.
+    On Windows Server, where there may be no desktop session at all, this
+    is the only part that runs.
+
+    Targets net10.0-windows because hosting as a service and writing to
+    the event log are Windows APIs. The gateway itself lives in
+    EasyFbSoft.Core and stays portable.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>FbGateway.Service</RootNamespace>
+    <AssemblyName>EasyFbSoft.Service</AssemblyName>
+    <Product>Easy FB Soft</Product>
+    <Company>Easy FB Soft</Company>
+    <Description>Easy FB Soft gateway service</Description>
+    <Copyright>Copyright © Easy FB Soft</Copyright>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../core/EasyFbSoft.Core.csproj" />
+  </ItemGroup>
+
+</Project>
