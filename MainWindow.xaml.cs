@@ -225,10 +225,24 @@ public partial class MainWindow : Window
         var config = _database.GetGatewayConfig();
         var state = _service.State();
 
+        /*
+         * Everything that can be known without asking the gateway is
+         * painted before anything is asked of it, so opening the window
+         * never waits on a network call to show something. The gateway
+         * line below keeps whatever it last said until the answer comes
+         * back, which is why this does not flicker on the timer.
+         */
+        RenderServiceState(state);
+
         var answering =
             state == ServiceState.Running
             && await _service.IsAnsweringAsync(config.BaseUrl);
 
+        RenderGatewayState(config, state, answering);
+    }
+
+    private void RenderServiceState(ServiceState state)
+    {
         StartServiceButton.Visibility =
             state == ServiceState.Stopped
                 ? Visibility.Visible
@@ -241,7 +255,13 @@ public partial class MainWindow : Window
             ServiceState.Pending => "Service: starting or stopping",
             _ => "Service: not installed — reinstall Easy FB Soft to add it"
         };
+    }
 
+    private void RenderGatewayState(
+        GatewayConfig config,
+        ServiceState state,
+        bool answering)
+    {
         if (answering)
         {
             GatewayStatusTextBlock.Text =

@@ -3,7 +3,10 @@ bin/
 obj/
 
 # Publish / packaging output
+# publish-fx is the framework-dependent tree the release path builds
+# beside publish/. A pattern for one does not cover the other.
 publish/
+publish-fx/
 artifacts/
 
 # Test output

@@ -40,7 +40,20 @@ public sealed class GatewayServiceControl : IDisposable
     private static readonly TimeSpan ControlTimeout =
         TimeSpan.FromSeconds(20);
 
-    private readonly HttpClient _client = new()
+    /*
+     * Proxy detection is switched off deliberately, and it is the
+     * difference between a window that appears at once and one that
+     * hangs for seconds on a machine with "automatically detect
+     * settings" turned on. The first request would otherwise go looking
+     * for a WPAD server before it would consent to talk to 127.0.0.1.
+     *
+     * There is no case where a loopback request should go through a
+     * proxy, so nothing is lost. With it off, a port nothing is
+     * listening on refuses the connection immediately instead of
+     * burning the timeout.
+     */
+    private readonly HttpClient _client = new(
+        new HttpClientHandler { UseProxy = false, Proxy = null })
     {
         Timeout = TimeSpan.FromSeconds(2)
     };
