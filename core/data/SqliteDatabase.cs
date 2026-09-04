@@ -105,12 +105,44 @@ public class SqliteDatabase
         }
     }
 
+    /*
+     * Two processes share this file now: the service that hosts the
+     * gateway, and the control panel that configures it. That is what
+     * the pragmas below are for.
+     *
+     * WAL lets the service keep reading while the control panel writes,
+     * instead of the two locking each other out. It is stored in the
+     * database header, so setting it here is a one-off that later opens
+     * simply confirm.
+     *
+     * busy_timeout makes SQLite itself wait for a held write lock rather
+     * than leaving Microsoft.Data.Sqlite to poll for it. Measured, not
+     * assumed: with the pragma left at SQLite's default of 0 a contended
+     * write still succeeds, because the provider's own Default Timeout
+     * of 30 seconds is what supplies the waiting. So this is set to
+     * match that 30 seconds and not below it -- an earlier attempt used
+     * 5 seconds, which would have been a quieter cap than the provider
+     * already gives, not the improvement it looked like.
+     *
+     * synchronous=NORMAL is the documented companion to WAL: still
+     * crash-safe, without an fsync on every commit.
+     */
     private SqliteConnection OpenConnection()
     {
         var connection =
             new SqliteConnection(_connectionString);
 
         connection.Open();
+
+        using var pragma = connection.CreateCommand();
+
+        pragma.CommandText = """
+            PRAGMA journal_mode=WAL;
+            PRAGMA busy_timeout=30000;
+            PRAGMA synchronous=NORMAL;
+            """;
+
+        pragma.ExecuteNonQuery();
 
         return connection;
     }

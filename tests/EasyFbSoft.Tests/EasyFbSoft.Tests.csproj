@@ -14,15 +14,14 @@
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
   </ItemGroup>
 
+  <!--
+    A real reference now that the shared code is its own library. It
+    used to link the sources directly, because referencing the app would
+    have dragged in WPF and stopped these tests running on Linux; the
+    library targets net10.0, so that problem is gone.
+  -->
   <ItemGroup>
-    <PackageReference Include="FirebirdSql.Data.FirebirdClient" Version="10.3.4" />
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.11" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <Compile Include="../../Configuration/**/*.cs" />
-    <Compile Include="../../data/**/*.cs" />
-    <Compile Include="../../Gateway/**/*.cs" />
+    <ProjectReference Include="../../core/EasyFbSoft.Core.csproj" />
   </ItemGroup>
 
 </Project>

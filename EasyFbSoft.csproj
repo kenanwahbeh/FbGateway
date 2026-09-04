@@ -32,18 +32,21 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="FirebirdSql.Data.FirebirdClient" Version="10.3.4" />
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.11" />
+    <ProjectReference Include="core/EasyFbSoft.Core.csproj" />
   </ItemGroup>
 
   <!--
-    This project sits at the repo root, so the SDK's default glob would
-    otherwise pull the test project's sources, and its obj output, into
-    the app.
+    This project sits at the repo root, so the SDK's default glob picks
+    up every .cs file under it. Every sibling project has to be removed
+    by hand or its sources get compiled into the app a second time, and
+    the duplicate-type errors that causes point at the wrong file.
+
+    Add a line here whenever a new project is added to the repo, or move
+    this project out of the root and be done with it.
   -->
   <ItemGroup>
-    <Compile Remove="tests/**" />
-    <None Remove="tests/**" />
+    <Compile Remove="tests/**;core/**;service/**" />
+    <None Remove="tests/**;core/**;service/**" />
   </ItemGroup>
 
 </Project>
