@@ -1,3 +1,4 @@
+using System.Net;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using FbGateway.Configuration;
@@ -171,7 +172,16 @@ public sealed class GatewayWorker : BackgroundService
         || running.MaxRows != desired.MaxRows
         || running.CommandTimeoutSeconds != desired.CommandTimeoutSeconds;
 
-    private void StartWith(GatewayConfig config)
+    /*
+     * HttpListener's "access denied", which means HTTP.SYS has no
+     * reservation for this prefix rather than anything about the file
+     * system. GatewayServer wraps the original, so the code is on the
+     * inner exception.
+     */
+    private static bool NeedsReservation(Exception error) =>
+        error.InnerException is HttpListenerException { ErrorCode: 5 };
+
+    private void StartWith(GatewayConfig config, bool reserved = false)
     {
         try
         {
@@ -193,6 +203,20 @@ public sealed class GatewayWorker : BackgroundService
              * Both are fixable from outside without touching the
              * service, so it keeps retrying instead of giving up.
              */
+            /*
+             * Reserve the prefix and try once more, so changing the
+             * port in the control panel does not need an administrator
+             * at a prompt. Guarded so a reservation that does not fix
+             * it cannot loop.
+             */
+            if (!reserved
+                && NeedsReservation(error)
+                && UrlReservation.TryAdd(config.Prefix, _logger))
+            {
+                StartWith(config, reserved: true);
+                return;
+            }
+
             if (_lastFailure != error.Message)
             {
                 _lastFailure = error.Message;

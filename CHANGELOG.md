@@ -15,6 +15,42 @@ file is the single source of truth for what shipped.
 
 ### Added
 
+- **The gateway runs as a Windows service.** It starts with the machine
+  and serves with nobody signed in, which is what makes an unattended
+  Windows Server a supported target. Closing the control panel no
+  longer stops it: the window used to *be* the server, so tidying the
+  desktop took the gateway down and a tunnel started returning `502`
+  with nothing obviously wrong.
+
+  The window is otherwise the one that was there. Databases, the API
+  key, the port and the on/off switch are all in the same place; the
+  switch now records what the gateway should be doing and the service
+  acts on it within a few seconds.
+
+  It also reports two things separately that are easy to confuse:
+  whether Windows is running the service, and whether the gateway is
+  actually answering, checked by calling `/health` over loopback. A
+  running service whose gateway could not bind is exactly the state
+  behind a `502`, so it is named rather than shown as healthy.
+
+- **Configuration from a terminal**, for Windows Server Core, which has
+  no desktop and so cannot run the control panel at all. The service
+  executable doubles as an admin tool: `status`, `on`, `off`, `port`,
+  `key show`, `key new`, and `db list/add/enable/disable/remove`. On a
+  machine with a desktop you never need it.
+
+- **The settings folder is locked to Administrators and Local System.**
+  It holds the Firebird passwords in the clear beside the API key, and
+  that key is all that stands between the public internet and those
+  databases; inherited from `ProgramData` it would have been readable
+  by every account on the machine. The control panel therefore asks for
+  administrator rights, which starting and stopping the service needs
+  anyway.
+
+- The service reserves its own HTTP prefix when Windows refuses one, so
+  changing the port does not leave the gateway unable to bind, and
+  restarts itself on failure rather than staying down.
+
 - **The `.exe` installers now fetch what they need.** The `-framework`
   build no longer stops with a link when the .NET 10 Desktop Runtime is
   missing: it asks first, then downloads it from Microsoft and installs

@@ -39,8 +39,10 @@
     <Property Id="ARPURLINFOABOUT" Value="https://github.com/kenanwahbeh/FbGateway" />
 
     <!--
-      The app needs a desktop session: it is a WPF window that hosts
-      the gateway, so a server core install is not a target.
+      An OS floor, nothing more. Server Core is now a supported target:
+      the gateway runs in a service, and the executable that installs
+      alongside the window configures it from a terminal, so a machine
+      with no desktop at all is usable.
     -->
     <Launch Condition="Installed OR VersionNT &gt;= 603"
             Message="Easy FB Soft requires Windows 8.1 or later." />
@@ -55,6 +57,7 @@
 
     <Feature Id="Main" Title="Easy FB Soft" Level="1">
       <ComponentGroupRef Id="AppFiles" />
+      <ComponentRef Id="GatewayService" />
       <ComponentRef Id="StartMenuShortcut" />
     </Feature>
 
@@ -74,8 +77,63 @@
       those warnings into errors so it cannot happen again.
     -->
     <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
-      <Files Include="../$(var.PublishDir)/**" />
+      <Files Include="../$(var.PublishDir)/**">
+        <!--
+          Held out of the harvest so it can live in a component of its
+          own below. ServiceInstall has to sit in the same component as
+          the executable it registers, and a harvested file lands in a
+          component whose id is generated and cannot be referred to.
+        -->
+        <Exclude Files="../$(var.PublishDir)/EasyFbSoft.Service.exe" />
+      </Files>
     </ComponentGroup>
+
+    <!--
+      The gateway runs here, not in the window. Registering it as a
+      service is what lets it start with the machine and keep serving
+      with nobody signed in, which is the only arrangement that works on
+      a Windows Server with no interactive session.
+
+      Note the path: Source is relative to the directory wix was
+      launched from, while the Include above is relative to this file.
+      That is WiX's inconsistency, checked rather than assumed, and the
+      two must not be made to match.
+    -->
+    <Component Id="GatewayService"
+               Directory="INSTALLFOLDER"
+               Guid="5C1D7A64-9E0B-4E6E-9E2A-2F4C6B8D1A37">
+
+      <File Id="ServiceExecutable"
+            Source="$(var.PublishDir)/EasyFbSoft.Service.exe"
+            KeyPath="yes" />
+
+      <!--
+        LocalSystem because the gateway must run without a signed-in
+        user, and because reserving its HTTP prefix and locking down the
+        settings folder both need that level of rights.
+      -->
+      <ServiceInstall Id="GatewayServiceInstall"
+                      Name="EasyFbSoft"
+                      DisplayName="Easy FB Soft Gateway"
+                      Description="Serves the Easy FB Soft HTTP gateway over the configured Firebird databases, so it runs without anyone signed in."
+                      Type="ownProcess"
+                      Start="auto"
+                      ErrorControl="normal"
+                      Account="LocalSystem"
+                      Vital="yes" />
+
+      <!--
+        Stop="both" stops it on uninstall and on upgrade, which is what
+        frees the executable so the new one can replace it.
+      -->
+      <ServiceControl Id="GatewayServiceControl"
+                      Name="EasyFbSoft"
+                      Start="install"
+                      Stop="both"
+                      Remove="uninstall"
+                      Wait="yes" />
+
+    </Component>
 
     <Component Id="StartMenuShortcut"
                Directory="AppMenuFolder"

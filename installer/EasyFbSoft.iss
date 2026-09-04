@@ -32,6 +32,9 @@
 #define AppName      "Easy FB Soft"
 #define AppPublisher "Easy FB Soft"
 #define AppExeName   "EasyFbSoft.exe"
+#define ServiceExe   "EasyFbSoft.Service.exe"
+#define ServiceName  "EasyFbSoft"
+#define ServiceLabel "Easy FB Soft Gateway"
 #define AppUrl       "https://github.com/kenanwahbeh/FbGateway"
 
 ; Prerequisites Setup can fetch on the customer's machine. Both are
@@ -106,6 +109,11 @@ Name: "cloudflared"; \
   Description: "Download and install Cloudflare Tunnel (cloudflared), about 18 MB"; \
   GroupDescription: "Cloudflare Tunnel:"; \
   Check: not HasCloudflared
+
+[Dirs]
+; Created here so the installer owns its permissions rather than
+; whichever account happens to start the service first.
+Name: "{commonappdata}\EasyFbSoft"
 
 [Files]
 Source: "..\{#PublishDir}\*"; \
@@ -305,11 +313,48 @@ begin
              mbInformation, MB_OK);
 end;
 
+{ Runs a console tool with no window and hands back its exit code. }
+function RunHidden(const FileName, Params: String; var Code: Integer): Boolean;
+begin
+  Result := Exec(FileName, Params, '', SW_HIDE, ewWaitUntilTerminated, Code);
+end;
+
+function Sc(const Params: String; var Code: Integer): Boolean;
+begin
+  Result := RunHidden(ExpandConstant('{sys}\sc.exe'), Params, Code);
+end;
+
+{
+  sc query answers 0 for a service that exists whatever state it is in,
+  and 1060 when there is no such service.
+}
+function ServiceExists(): Boolean;
+var
+  Code: Integer;
+begin
+  Result := Sc('query {#ServiceName}', Code) and (Code = 0);
+end;
+
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 var
   Code: Integer;
 begin
   Result := '';
+
+  {
+    The service holds its own executable open, so an upgrade cannot
+    replace the files until it stops. Failure is ignored on purpose:
+    sc stop answers 1062 for a service that is already stopped, and a
+    service that will not stop is reported by the file copy that
+    follows, with a better message than anything available here.
+  }
+  if ServiceExists() then
+  begin
+    Sc('stop {#ServiceName}', Code);
+
+    { Stopping is not instant, and sc returns as soon as it is asked. }
+    Sleep(3000);
+  end;
 
 #ifdef RequireRuntime
   if DotNetSetup <> '' then
@@ -359,4 +404,129 @@ begin
       MsgBox('cloudflared could not be installed, but Easy FB Soft is installed'
              + ' and will work locally.', mbInformation, MB_OK);
   end;
+end;
+
+{
+  Everything that turns the installed files into a running service.
+
+  Done here rather than in [Run] so an upgrade can tell the difference
+  between creating the service and repointing an existing one, and so a
+  failure can say which step failed.
+}
+procedure SecureDataFolder();
+var
+  Code: Integer;
+  Folder: String;
+begin
+  Folder := ExpandConstant('{commonappdata}\EasyFbSoft');
+
+  {
+    The settings file holds the Firebird passwords in the clear and the
+    gateway API key, and that key is all that stands between the public
+    internet and those databases. So inheritance is dropped and only
+    Local System, which runs the service, and Administrators, who run
+    the control panel, are let in.
+
+    Identified by SID rather than name: "NT AUTHORITY\SYSTEM" and
+    "BUILTIN\Administrators" are translated on localised installations
+    of Windows and icacls would not find them, whereas S-1-5-18 and
+    S-1-5-32-544 are the same everywhere.
+  }
+  RunHidden(
+    ExpandConstant('{sys}\icacls.exe'),
+    '"' + Folder + '" /inheritance:r'
+    + ' /grant:r "*S-1-5-18:(OI)(CI)F"'
+    + ' /grant:r "*S-1-5-32-544:(OI)(CI)F"',
+    Code);
+end;
+
+procedure InstallService();
+var
+  Code: Integer;
+  Binary: String;
+begin
+  Binary := ExpandConstant('{app}\{#ServiceExe}');
+
+  { sc parses binPath= as one token, so the quotes have to be inside. }
+  if ServiceExists() then
+  begin
+    Sc('config {#ServiceName} binPath= "\"' + Binary + '\"" start= auto', Code);
+  end
+  else
+  begin
+    Sc('create {#ServiceName} binPath= "\"' + Binary + '\"" start= auto'
+       + ' DisplayName= "{#ServiceLabel}"', Code);
+
+    if Code <> 0 then
+    begin
+      MsgBox('The Easy FB Soft service could not be registered (code '
+             + IntToStr(Code) + ').'#13#10#13#10
+             + 'The application is installed, but the gateway will not run '
+             + 'until the service exists.',
+             mbError, MB_OK);
+
+      Exit;
+    end;
+  end;
+
+  Sc('description {#ServiceName} "Serves the Easy FB Soft HTTP gateway over '
+     + 'the configured Firebird databases, so it runs without anyone signed in."',
+     Code);
+
+  {
+    Restart on failure rather than staying down. This is the machine a
+    tunnel points at; a gateway that dies quietly is a 502 nobody is
+    watching for. The counter resets after a day so a genuinely broken
+    service still stops flapping.
+  }
+  Sc('failure {#ServiceName} reset= 86400'
+     + ' actions= restart/5000/restart/15000/restart/60000', Code);
+
+  Sc('start {#ServiceName}', Code);
+end;
+
+procedure CurStepChanged(CurStep: TSetupStep);
+begin
+  if CurStep = ssPostInstall then
+  begin
+    SecureDataFolder();
+    InstallService();
+  end;
+end;
+
+{
+  Taking the service away again.
+
+  Done in code rather than [UninstallRun] because sc returns the moment
+  it has asked, so a delete issued straight after a stop can arrive
+  while the service is still shutting down and fail. The pause is the
+  difference between a clean removal and a service left behind marked
+  for deletion until the next reboot.
+}
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  Code: Integer;
+begin
+  if CurUninstallStep <> usUninstall then
+  begin
+    Exit;
+  end;
+
+  if not ServiceExists() then
+  begin
+    Exit;
+  end;
+
+  Sc('stop {#ServiceName}', Code);
+
+  Sleep(3000);
+
+  Sc('delete {#ServiceName}', Code);
+
+  {
+    The settings folder is deliberately left behind. It holds the
+    configured databases and the API key, and someone reinstalling
+    should not have to type them all again. It stays readable only by
+    Administrators and Local System, as the install left it.
+  }
 end;
