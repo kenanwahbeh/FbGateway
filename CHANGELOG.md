@@ -30,6 +30,22 @@ file is the single source of truth for what shipped.
   before a request reaches the machine. See
   [GATEWAY.md](GATEWAY.md#locking-the-tunnel-to-just-you).
 
+### Fixed
+
+- **The `.msi` installers carried no application.** `Package.wxs`
+  harvested the published folder with a path relative to the directory
+  `wix` was launched from, but WiX resolves `Files/@Include` relative to
+  the `.wxs` file itself, so the glob pointed at `installer\publish`,
+  which does not exist. WiX only *warns* when a harvest matches nothing
+  and still writes a valid installer, so the build passed and 1.0.0
+  shipped two 48 KB `.msi` files containing a Start Menu shortcut and
+  nothing else -- pointing at an executable that was never copied. Both
+  `.exe` installers were unaffected and install correctly. The build now
+  fails outright on an empty harvest, and additionally checks every
+  installer against the size of the folder it is supposed to package.
+- The `.wixpdb` files are no longer attached to releases. They are
+  build-time symbol files for WiX itself and were published by accident.
+
 ## [1.0.0] - 2026-09-03
 
 ### Added
