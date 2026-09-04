@@ -150,13 +150,30 @@ jobs:
 
             try {
               $head = Invoke-WebRequest -Uri $url -Method Head -MaximumRedirection 10
-              $mb = [math]::Round($head.Headers.'Content-Length'[0] / 1MB, 1)
 
-              Write-Host "ok   $name : $mb MB"
+              if ($head.StatusCode -ne 200) {
+                $failed += "$name returned HTTP $($head.StatusCode) from $url"
+                continue
+              }
 
-              # A few hundred KB back means an error page, not an installer.
-              if ($mb -lt 5) {
-                $failed += "$name returned only $mb MB from $url"
+              # Reaching the vendor is the check that matters. Size is a
+              # bonus, and only when offered: a redirect chain ending at a
+              # CDN need not answer a HEAD with Content-Length, and missing
+              # it is not a broken URL. Index with [] so an absent header
+              # is null rather than an exception.
+              $length = $head.Headers['Content-Length']
+              if ($length -is [array]) { $length = $length[0] }
+
+              if ($length) {
+                $mb = [math]::Round([int64]$length / 1MB, 1)
+                Write-Host "ok   $name : $mb MB"
+
+                # A few hundred KB back means an error page, not an installer.
+                if ($mb -lt 5) {
+                  $failed += "$name returned only $mb MB from $url"
+                }
+              } else {
+                Write-Host "ok   $name : reachable (no Content-Length on the HEAD)"
               }
             } catch {
               $failed += "$name is unreachable at $url ($($_.Exception.Message))"
