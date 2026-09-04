@@ -30,12 +30,19 @@ Grab an installer from the
 | ---- | ---- | ----------- |
 | `EasyFbSoft-<version>-x64-setup.exe` | included | **Start here.** Normal desktop install. |
 | `EasyFbSoft-<version>-x64.msi` | included | Group Policy, Intune, or a scripted rollout. |
-| `EasyFbSoft-<version>-x64-framework-setup.exe` | required | You already have the runtime and want a much smaller download. |
+| `EasyFbSoft-<version>-x64-framework-setup.exe` | fetched | Much smaller download; Setup installs the runtime if the machine lacks it. |
 | `EasyFbSoft-<version>-x64-framework.msi` | required | Scripted rollout where the runtime is managed separately. |
 
 The `-framework` builds need the
-[.NET 10 Desktop Runtime (x64)](https://dotnet.microsoft.com/download/dotnet/10.0).
-The bundled builds need nothing else installed.
+[.NET 10 Desktop Runtime (x64)](https://dotnet.microsoft.com/download/dotnet/10.0);
+the `-framework` **.exe** downloads and installs it when it is missing,
+while the `.msi` expects your deployment tool to handle it. The bundled
+builds need nothing else installed.
+
+Both `.exe` installers also offer to install `cloudflared`, skipping the
+offer when it is already present. That gets you the connector; pointing
+it at a tunnel still needs your own token, which is the whole point —
+see [GATEWAY.md](GATEWAY.md).
 
 Requires 64-bit Windows 8.1 or later. All installers are per-machine
 and ask for administrator rights once.

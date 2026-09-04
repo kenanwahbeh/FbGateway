@@ -34,6 +34,22 @@
 #define AppExeName   "EasyFbSoft.exe"
 #define AppUrl       "https://github.com/kenanwahbeh/FbGateway"
 
+; Prerequisites Setup can fetch on the customer's machine. Both are
+; official vendor URLs that always point at the current build, so no
+; SHA-256 is pinned -- a pinned hash would break on every upstream
+; release. HTTPS is what authenticates them, which is why these must
+; stay https:// and must stay on the vendors' own domains.
+;
+; release.yml checks both respond before it builds, so a URL that moves
+; fails the release instead of failing on a customer's machine.
+#ifndef DotNetUrl
+  #define DotNetUrl "https://aka.ms/dotnet/10.0/windowsdesktop-runtime-win-x64.exe"
+#endif
+
+#ifndef CloudflaredUrl
+  #define CloudflaredUrl "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.msi"
+#endif
+
 [Setup]
 AppId={{4DF9ABE1-3644-4B2B-9A42-B4742A9C6DB4}
 AppName={#AppName}
@@ -82,6 +98,15 @@ Name: "desktopicon"; \
   GroupDescription: "{cm:AdditionalIcons}"; \
   Flags: unchecked
 
+; Offered only when cloudflared is not already on the machine, and
+; ticked by default because this app is meant to be reached through a
+; tunnel. Installing the binary does not connect a tunnel: that still
+; needs your own token, which is deliberate -- see GATEWAY.md.
+Name: "cloudflared"; \
+  Description: "Download and install Cloudflare Tunnel (cloudflared), about 18 MB"; \
+  GroupDescription: "Cloudflare Tunnel:"; \
+  Check: not HasCloudflared
+
 [Files]
 Source: "..\{#PublishDir}\*"; \
   DestDir: "{app}"; \
@@ -96,17 +121,77 @@ Filename: "{app}\{#AppExeName}"; \
   Description: "{cm:LaunchProgram,{#StringChange(AppName, '&', '&&')}}"; \
   Flags: nowait postinstall skipifsilent
 
-#ifdef RequireRuntime
 [Code]
 
 {
-  This distribution does not carry .NET, so refuse to install when the
-  runtime is missing rather than leaving behind an app that exits
-  silently on launch.
+  Setup can fetch two things from the vendors during install: the .NET
+  Desktop Runtime, for the -framework build that does not carry it, and
+  cloudflared, without which there is no tunnel to reach this app
+  through.
 
-  The check looks for a real 10.x shared-framework directory instead
-  of a registry version string, so it cannot be fooled by a leftover
-  key from an uninstalled runtime.
+  The two failures are treated differently on purpose. Without .NET the
+  -framework build cannot run at all, so a failed download aborts the
+  install rather than leaving a shortcut to an app that exits on launch.
+  cloudflared is not needed for the app to run, only to reach it from
+  outside, so a failed download warns and carries on.
+}
+
+var
+  PrereqPage: TDownloadWizardPage;
+  DotNetSetup: String;
+  CloudflaredSetup: String;
+
+function OnDownloadProgress(const Url, FileName: String; const Progress, ProgressMax: Int64): Boolean;
+begin
+  Result := True;
+end;
+
+{ Walks PATH by hand rather than using a search helper, to stay inside
+  the small set of functions Inno's Pascal Script is guaranteed to have. }
+function OnPath(const Exe: String): Boolean;
+var
+  Path, Dir: String;
+  P: Integer;
+begin
+  Result := False;
+  Path := GetEnv('PATH') + ';';
+
+  while (not Result) and (Path <> '') do
+  begin
+    P := Pos(';', Path);
+    if P = 0 then
+      P := Length(Path) + 1;
+
+    Dir := Trim(Copy(Path, 1, P - 1));
+    Delete(Path, 1, P);
+
+    if Dir <> '' then
+    begin
+      if Dir[Length(Dir)] <> '\' then
+        Dir := Dir + '\';
+
+      Result := FileExists(Dir + Exe);
+    end;
+  end;
+end;
+
+{
+  Both Program Files locations, because the cloudflared .msi has shipped
+  to each over time, plus PATH, which covers winget, scoop and a manual
+  drop into a folder of the admin's choosing.
+}
+function HasCloudflared(): Boolean;
+begin
+  Result := FileExists(ExpandConstant('{commonpf64}\cloudflared\cloudflared.exe'))
+         or FileExists(ExpandConstant('{commonpf32}\cloudflared\cloudflared.exe'))
+         or OnPath('cloudflared.exe');
+end;
+
+#ifdef RequireRuntime
+{
+  Looks for a real 10.x shared-framework directory instead of a registry
+  version string, so a leftover key from an uninstalled runtime cannot
+  fool it.
 }
 function HasDesktopRuntime10(): Boolean;
 var
@@ -129,27 +214,149 @@ begin
     end;
   end;
 end;
+#endif
+
+{ Downloads one file, returning False rather than raising, so each
+  caller can decide whether its prerequisite is worth stopping for. }
+function TryDownload(const Url, BaseName: String; var Path: String): Boolean;
+begin
+  Path := '';
+
+  PrereqPage.Clear;
+  PrereqPage.Add(Url, BaseName, '');
+  PrereqPage.Show;
+
+  try
+    try
+      PrereqPage.Download;
+      Path := ExpandConstant('{tmp}\') + BaseName;
+      Result := True;
+    except
+      Log('Download of ' + Url + ' failed: ' + GetExceptionMessage);
+      Result := False;
+    end;
+  finally
+    PrereqPage.Hide;
+  end;
+end;
+
+procedure InitializeWizard();
+begin
+  PrereqPage := CreateDownloadPage(SetupMessage(msgWizardPreparing),
+                                   SetupMessage(msgPreparingDesc),
+                                   @OnDownloadProgress);
+end;
 
 function InitializeSetup(): Boolean;
+begin
+  Result := True;
+
+#ifdef RequireRuntime
+  { Asked before anything is written, so declining costs nothing. }
+  if not HasDesktopRuntime10() then
+    Result := MsgBox('This build does not include .NET, and the .NET 10 Desktop Runtime (x64)'
+                     + ' was not found on this computer.'
+                     + #13#10#13#10
+                     + 'Setup can download it from Microsoft and install it for you.'
+                     + ' That is roughly a 60 MB download and needs an internet connection.'
+                     + #13#10#13#10
+                     + 'Continue?',
+                     mbConfirmation, MB_YESNO) = IDYES;
+#endif
+end;
+
+function NextButtonClick(CurPageID: Integer): Boolean;
 var
   ErrorCode: Integer;
 begin
   Result := True;
 
+  if CurPageID <> wpReady then
+    Exit;
+
+#ifdef RequireRuntime
   if not HasDesktopRuntime10() then
   begin
-    if MsgBox('This installer does not include .NET, and the .NET 10 Desktop Runtime (x64) was not found on this computer.'
-              + #13#10#13#10
-              + 'Either install the runtime, or download the standard installer instead, which bundles .NET and needs no prerequisites.'
-              + #13#10#13#10
-              + 'Open the .NET download page now?',
-              mbError, MB_YESNO) = IDYES then
+    if not TryDownload('{#DotNetUrl}', 'windowsdesktop-runtime.exe', DotNetSetup) then
     begin
-      ShellExec('open', 'https://dotnet.microsoft.com/download/dotnet/10.0',
-                '', '', SW_SHOW, ewNoWait, ErrorCode);
+      if MsgBox('The .NET 10 Desktop Runtime could not be downloaded.'
+                + #13#10#13#10
+                + 'Check the internet connection and try again, or install the runtime'
+                + ' yourself and re-run this installer. The build that bundles .NET needs'
+                + ' no download at all.'
+                + #13#10#13#10
+                + 'Open the .NET download page now?',
+                mbError, MB_YESNO) = IDYES then
+        ShellExec('open', 'https://dotnet.microsoft.com/download/dotnet/10.0',
+                  '', '', SW_SHOW, ewNoWait, ErrorCode);
+
+      Result := False;
+      Exit;
+    end;
+  end;
+#endif
+
+  if WizardIsTaskSelected('cloudflared') then
+    if not TryDownload('{#CloudflaredUrl}', 'cloudflared.msi', CloudflaredSetup) then
+      MsgBox('cloudflared could not be downloaded, so it will be skipped.'
+             + #13#10#13#10
+             + 'Easy FB Soft itself will still install. You can add cloudflared later from'
+             + ' https://github.com/cloudflare/cloudflared/releases.',
+             mbInformation, MB_OK);
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  Code: Integer;
+begin
+  Result := '';
+
+#ifdef RequireRuntime
+  if DotNetSetup <> '' then
+  begin
+    if not Exec(DotNetSetup, '/install /quiet /norestart', '',
+                SW_SHOW, ewWaitUntilTerminated, Code) then
+    begin
+      Result := 'The .NET Desktop Runtime installer could not be started.';
+      Exit;
     end;
 
-    Result := False;
+    { 3010 is success with a restart pending. }
+    if Code = 3010 then
+      NeedsRestart := True
+    else if Code <> 0 then
+    begin
+      Result := Format('The .NET Desktop Runtime installer failed with code %d.', [Code]);
+      Exit;
+    end;
+
+    { Trust the result of the check, not the exit code. }
+    if not HasDesktopRuntime10() then
+    begin
+      Result := 'The .NET Desktop Runtime installer reported success, but the runtime'
+                + ' is still not present. Install it manually and run Setup again.';
+      Exit;
+    end;
+  end;
+#endif
+
+  { Never fatal: a machine without cloudflared still runs the app. }
+  if CloudflaredSetup <> '' then
+  begin
+    if Exec(ExpandConstant('{sys}\msiexec.exe'),
+            '/i "' + CloudflaredSetup + '" /qn /norestart', '',
+            SW_SHOW, ewWaitUntilTerminated, Code) then
+    begin
+      if Code = 3010 then
+        NeedsRestart := True
+      else if Code <> 0 then
+        MsgBox(Format('cloudflared did not install (installer code %d).', [Code])
+               + #13#10#13#10
+               + 'Easy FB Soft is installed and will work locally; add cloudflared later'
+               + ' to reach it through a tunnel.', mbInformation, MB_OK);
+    end
+    else
+      MsgBox('cloudflared could not be installed, but Easy FB Soft is installed'
+             + ' and will work locally.', mbInformation, MB_OK);
   end;
 end;
-#endif
