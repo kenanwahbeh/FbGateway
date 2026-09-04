@@ -28,6 +28,20 @@ All four are the same product, so a new version replaces the old one.
 Switching between the bundled and `-framework` builds at the *same*
 version means uninstalling first.
 
+### It runs as a service
+
+The gateway is installed and started as the `EasyFbSoft` Windows
+service. It starts with the machine and serves with nobody signed in,
+so closing the window no longer takes the gateway down.
+
+The window is now a control panel for that service, and asks for
+administrator rights: the settings folder holds your Firebird passwords
+and the API key, and is restricted to Administrators and the service
+account.
+
+On **Windows Server Core**, where there is no desktop, configure it from
+a terminal instead: `EasyFbSoft.Service.exe --help`.
+
 ### After installing
 
 Start Easy FB Soft, add a Firebird connection and turn it Online, then

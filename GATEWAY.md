@@ -5,7 +5,9 @@ JSON API on loopback, so a Cloudflare Tunnel running on the same
 machine has something to forward requests to.
 
 The listener starts with the app. Its status, port and API key are
-shown in the **Gateway API** panel of the main window.
+shown in the **Gateway API** panel of the control panel window.
+The gateway itself runs as the `EasyFbSoft` Windows service, so it is
+up whether or not that window is open.
 
 ## Endpoints
 
@@ -231,7 +233,7 @@ leaves the other.
 
 **502 from the tunnel, or Cloudflare error 1033** — nothing is
 listening on the port `cloudflared` forwards to. Check the Gateway
-API panel says **Running**, and that its port matches the tunnel's
+API panel says **Answering**, and that its port matches the tunnel's
 `service:` URL. On the machine itself:
 
 ```
