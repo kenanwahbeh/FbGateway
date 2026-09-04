@@ -67,7 +67,7 @@
       launch directory. That inconsistency is WiX's, not a typo here,
       and the two must not be made to match.
 
-      Getting Include wrong is silent -- WiX only warns that zero files
+      Getting Include wrong is silent: WiX only warns that zero files
       were harvested and still writes a perfectly valid installer, which
       is how 1.0.0 shipped a 48 KB .msi that installed nothing but a
       Start Menu shortcut. The build passes -wx8600 and -wx8601 to turn
