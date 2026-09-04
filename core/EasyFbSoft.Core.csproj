@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Everything that is not the desktop UI: the HTTP gateway, the
+    Firebird executor, the request log and the settings database.
+
+    Deliberately targets net10.0 rather than net10.0-windows. Nothing in
+    here needs Windows (HttpListener is cross-platform), and keeping it
+    portable is what lets the test project run on Linux in CI against a
+    real Firebird container.
+
+    Three projects consume it: the WPF control panel, the Windows
+    service that actually hosts the gateway, and the tests.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>FbGateway</RootNamespace>
+    <AssemblyName>EasyFbSoft.Core</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="FirebirdSql.Data.FirebirdClient" Version="10.3.4" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.11" />
+  </ItemGroup>
+
+  <!--
+    FirebirdExecutor is internal on purpose: callers go through
+    GatewayServer, not straight at the database. The tests used to see
+    it because they compiled these sources into themselves; now that
+    this is a real library they need to be let in explicitly.
+  -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="EasyFbSoft.Tests" />
+  </ItemGroup>
+
+</Project>
