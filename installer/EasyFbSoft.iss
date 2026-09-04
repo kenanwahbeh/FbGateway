@@ -447,7 +447,25 @@ var
 begin
   Binary := ExpandConstant('{app}\{#ServiceExe}');
 
-  { sc parses binPath= as one token, so the quotes have to be inside. }
+  {
+    The quoting here is deliberate and worth reading twice.
+
+    Inno's Pascal has no escape character, so '"\\""' is literally a
+    quote, a backslash, a quote. Exec calls CreateProcess without a
+    shell, so sc.exe receives that verbatim and parses it by the usual
+    C runtime rules, under which \\" inside a quoted run means a literal
+    quote. What sc ends up storing is the path with quotes around it.
+
+    Which is what is wanted: an unquoted ImagePath containing spaces,
+    and "C:\\Program Files\\Easy FB Soft" certainly does, is the classic
+    unquoted-service-path privilege escalation. Windows would try
+    C:\\Program.exe first.
+
+    Confirm after installing with:  sc qc EasyFbSoft
+    BINARY_PATH_NAME must show the full path wrapped in quotes.
+
+    Note also the space after every "=", which sc requires.
+  }
   if ServiceExists() then
   begin
     Sc('config {#ServiceName} binPath= "\"' + Binary + '\"" start= auto', Code);
