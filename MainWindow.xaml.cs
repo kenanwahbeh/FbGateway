@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Threading;
 using FirebirdSql.Data.FirebirdClient;
 using FbGateway.Configuration;
 using FbGateway.Data;
@@ -15,7 +16,18 @@ public partial class MainWindow : Window
 {
     private readonly SqliteDatabase _database;
 
-    private readonly GatewayServer _gateway;
+    private readonly GatewayServiceControl _service = new();
+
+    /*
+     * The window no longer holds the gateway; the service does. This
+     * refreshes what the window shows about it, because the service
+     * reacts to a settings change on its own schedule rather than when
+     * a button is clicked.
+     */
+    private readonly DispatcherTimer _refresh = new()
+    {
+        Interval = TimeSpan.FromSeconds(2)
+    };
 
     private List<DatabaseConfig> _connections = new();
 
@@ -25,110 +37,110 @@ public partial class MainWindow : Window
 
         _database = new SqliteDatabase();
 
-        _gateway = new GatewayServer(_database);
-
         GatewayPortTextBox.Text =
-            _gateway.Config.Port.ToString();
+            _database.GetGatewayConfig().Port.ToString();
+
+        _refresh.Tick += async (_, _) => await UpdateGatewayUi();
 
         LoadConnections();
 
-        UpdateGatewayUi();
+        _ = UpdateGatewayUi();
+
+        _refresh.Start();
     }
 
     /*
-     * Autostart happens after the window is up so a failure can
-     * be reported in a dialog the user actually sees.
-     *
-     * A gateway that fails to start silently is the whole reason
-     * a tunnel pointed at this machine returns 502.
+     * The gateway starts with the machine now, so there is nothing to
+     * start here. What is worth doing is telling someone when the
+     * service that should be hosting it is not installed or not
+     * running, since the window otherwise looks the same either way.
      */
-    private void Window_Loaded(
+    private async void Window_Loaded(
         object sender,
         RoutedEventArgs e)
     {
-        if (_gateway.Config.AutoStart &&
-            !_gateway.IsRunning)
-        {
-            StartGateway();
-        }
+        await UpdateGatewayUi();
     }
 
     private void Window_Closed(
         object sender,
         EventArgs e)
     {
-        _gateway.Dispose();
+        /*
+         * Deliberately does not stop the gateway. Closing this window
+         * used to kill it, which is the whole reason a tunnel went dead
+         * when someone tidied up their desktop.
+         */
+        _refresh.Stop();
+
+        _service.Dispose();
     }
 
-    private void GatewayToggleButton_Click(
+    /*
+     * Records whether the gateway should be listening and leaves the
+     * service to act on it, rather than starting or stopping a listener
+     * in this process. The service notices within a few seconds; the
+     * refresh timer is what makes the window catch up.
+     */
+    private async void GatewayToggleButton_Click(
         object sender,
         RoutedEventArgs e)
     {
-        if (_gateway.IsRunning)
+        var config = _database.GetGatewayConfig();
+
+        if (config.AutoStart)
         {
-            _gateway.Stop();
+            config.AutoStart = false;
 
-            var stopped = _database.GetGatewayConfig();
+            _database.SaveGatewayConfig(config);
 
-            stopped.AutoStart = false;
-
-            _database.SaveGatewayConfig(stopped);
-
-            UpdateGatewayUi();
+            await UpdateGatewayUi();
 
             return;
         }
 
-        StartGateway();
-    }
+        var portText = GatewayPortTextBox.Text.Trim();
 
-    private void StartGateway()
-    {
-        var portText =
-            GatewayPortTextBox.Text.Trim();
-
-        if (!int.TryParse(portText, out var port) ||
-            port < 1 ||
-            port > 65535)
+        if (!int.TryParse(portText, out var port)
+            || port < 1
+            || port > 65535)
         {
             MessageBox.Show(
                 "Please enter a valid port between 1 and 65535.",
-
                 "Easy FB Soft",
-
                 MessageBoxButton.OK,
-
                 MessageBoxImage.Warning);
 
             return;
         }
-
-        var config = _database.GetGatewayConfig();
 
         config.Port = port;
         config.AutoStart = true;
 
+        _database.SaveGatewayConfig(config);
+
+        await UpdateGatewayUi();
+    }
+
+    private async void StartServiceButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
         try
         {
-            _gateway.Start(config);
-
-            _database.SaveGatewayConfig(config);
+            _service.Start();
         }
         catch (Exception ex)
         {
             MessageBox.Show(
-                $"The gateway could not start.\n\n{ex.Message}",
-
-                "Gateway Failed",
-
+                "The Easy FB Soft service could not be started.\n\n"
+                + ex.Message,
+                "Service",
                 MessageBoxButton.OK,
-
                 MessageBoxImage.Warning);
         }
-        finally
-        {
-            UpdateGatewayUi();
-        }
+
+        await UpdateGatewayUi();
     }
 
     private void CopyKeyButton_Click(
@@ -137,7 +149,7 @@ public partial class MainWindow : Window
     {
         try
         {
-            Clipboard.SetText(_gateway.Config.ApiKey);
+            Clipboard.SetText(_database.GetGatewayConfig().ApiKey);
 
             MessageBox.Show(
                 "API key copied.\n\n" +
@@ -183,8 +195,12 @@ public partial class MainWindow : Window
             return;
         }
 
-        _gateway.UpdateApiKey(
-            _database.RegenerateApiKey());
+        /*
+         * The service compares the key on every request and reloads it
+         * without rebinding, so a rotation takes effect within seconds
+         * and no restart is needed.
+         */
+        _database.RegenerateApiKey();
 
         MessageBox.Show(
             "A new API key was generated.\n\n" +
@@ -197,40 +213,92 @@ public partial class MainWindow : Window
             MessageBoxImage.Information);
     }
 
-    private void UpdateGatewayUi()
+    /*
+     * Shows two facts that are easy to confuse, and keeps them apart:
+     * whether Windows is running the service, and whether the gateway
+     * inside it is actually answering. A running service with a gateway
+     * that could not bind is precisely the state that makes a tunnel
+     * return 502, so collapsing the two would hide it.
+     */
+    private async Task UpdateGatewayUi()
     {
-        var config = _gateway.Config;
+        var config = _database.GetGatewayConfig();
+        var state = _service.State();
 
-        if (_gateway.IsRunning)
+        var answering =
+            state == ServiceState.Running
+            && await _service.IsAnsweringAsync(config.BaseUrl);
+
+        StartServiceButton.Visibility =
+            state == ServiceState.Stopped
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+
+        ServiceStatusTextBlock.Text = state switch
+        {
+            ServiceState.Running => "Service: running",
+            ServiceState.Stopped => "Service: stopped",
+            ServiceState.Pending => "Service: starting or stopping",
+            _ => "Service: not installed — reinstall Easy FB Soft to add it"
+        };
+
+        if (answering)
         {
             GatewayStatusTextBlock.Text =
-                $"● Running — {config.BaseUrl}";
+                $"● Answering — {config.BaseUrl}";
 
-            GatewayStatusTextBlock.Foreground =
-                Brushes.Green;
+            GatewayStatusTextBlock.Foreground = Brushes.Green;
 
             GatewayHintTextBlock.Text =
-                "Point the tunnel here:  " +
-                $"cloudflared tunnel --url {config.BaseUrl}";
+                "Point the tunnel here:  "
+                + $"cloudflared tunnel --url {config.BaseUrl}";
+        }
+        else if (!config.AutoStart)
+        {
+            GatewayStatusTextBlock.Text = "● Turned off";
 
-            GatewayToggleButton.Content = "Stop";
+            GatewayStatusTextBlock.Foreground = Brushes.Gray;
+
+            GatewayHintTextBlock.Text =
+                "The gateway is set not to listen. A tunnel pointed at "
+                + "this machine will return 502 until it is turned on.";
+        }
+        else if (state == ServiceState.Running)
+        {
+            /*
+             * Wanted, and the service is up, but nothing answers. Either
+             * it is still within a poll of noticing, or the bind failed
+             * and it is retrying. The event log carries the reason.
+             */
+            GatewayStatusTextBlock.Text = "● Starting, or unable to bind";
+
+            GatewayStatusTextBlock.Foreground = Brushes.DarkOrange;
+
+            GatewayHintTextBlock.Text =
+                $"The service is running but nothing answers on {config.BaseUrl}. "
+                + "Give it a few seconds; if it stays this way the port is in use "
+                + "or the reservation was refused. See Event Viewer, Application, "
+                + "source Easy FB Soft.";
         }
         else
         {
-            GatewayStatusTextBlock.Text = "● Stopped";
+            GatewayStatusTextBlock.Text = "● Not running";
 
-            GatewayStatusTextBlock.Foreground =
-                Brushes.Red;
+            GatewayStatusTextBlock.Foreground = Brushes.Red;
 
             GatewayHintTextBlock.Text =
-                "Nothing is listening. A Cloudflare tunnel pointed " +
-                "at this machine will return 502 until the gateway starts.";
-
-            GatewayToggleButton.Content = "Start";
+                "The service that hosts the gateway is not running, so a "
+                + "tunnel pointed at this machine will return 502.";
         }
 
-        GatewayPortTextBox.IsEnabled =
-            !_gateway.IsRunning;
+        GatewayToggleButton.Content =
+            config.AutoStart ? "Turn Off" : "Turn On";
+
+        /*
+         * The port is only editable while the gateway is meant to be
+         * off, so a change cannot half-apply under a live tunnel.
+         */
+        GatewayPortTextBox.IsEnabled = !config.AutoStart;
     }
 
     private void LoadConnections()
