@@ -5,8 +5,9 @@
   Built by .github/workflows/release.yml, which passes the version
   from the git tag and the folder to package:
 
-    wix build installer/Package.wxs -arch x64 ^
-      -d Version=1.2.3 -d PublishDir=publish -o EasyFbSoft-1.2.3-x64.msi
+    wix build installer/Package.wxs -arch x64 -wx8600 -wx8601 ^
+      -pdbtype none -d Version=1.2.3 -d PublishDir=publish ^
+      -o EasyFbSoft-1.2.3-x64.msi
 
   The same file builds both distributions; only PublishDir differs.
   They share one product identity on purpose, so a machine ends up
@@ -57,9 +58,23 @@
       <ComponentRef Id="StartMenuShortcut" />
     </Feature>
 
-    <!-- Harvests the whole published folder; no manual file list. -->
+    <!--
+      Harvests the whole published folder; no manual file list.
+
+      Include is relative to *this file*, not to the directory wix was
+      launched from, so the repo root is one level up. Note that the
+      Icon above is the other way round: SourceFile is relative to the
+      launch directory. That inconsistency is WiX's, not a typo here,
+      and the two must not be made to match.
+
+      Getting Include wrong is silent -- WiX only warns that zero files
+      were harvested and still writes a perfectly valid installer, which
+      is how 1.0.0 shipped a 48 KB .msi that installed nothing but a
+      Start Menu shortcut. The build passes -wx8600 and -wx8601 to turn
+      those warnings into errors so it cannot happen again.
+    -->
     <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
-      <Files Include="$(var.PublishDir)\**" />
+      <Files Include="../$(var.PublishDir)/**" />
     </ComponentGroup>
 
     <Component Id="StartMenuShortcut"

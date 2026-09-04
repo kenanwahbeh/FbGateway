@@ -113,12 +113,19 @@ jobs:
           # Fails the step with a clear message if the tool is not usable.
           wix --version
 
-          wix build installer/Package.wxs -arch x64 `
+          # -wx8600 and -wx8601 turn "zero files harvested" and "missing
+          # directory for harvesting" from warnings into errors. Left as
+          # warnings they build a valid but empty .msi, which is exactly
+          # what 1.0.0 shipped. -pdbtype none keeps the .wixpdb, which is
+          # a build-time symbol file, out of the release.
+          wix build installer/Package.wxs -arch x64 -wx8600 -wx8601 `
+            -pdbtype none `
             -d Version=${{ steps.version.outputs.msiVersion }} `
             -d PublishDir=publish `
             -o artifacts/EasyFbSoft-${{ steps.version.outputs.version }}-x64.msi
 
-          wix build installer/Package.wxs -arch x64 `
+          wix build installer/Package.wxs -arch x64 -wx8600 -wx8601 `
+            -pdbtype none `
             -d Version=${{ steps.version.outputs.msiVersion }} `
             -d PublishDir=publish-fx `
             -o artifacts/EasyFbSoft-${{ steps.version.outputs.version }}-x64-framework.msi
@@ -149,6 +156,35 @@ jobs:
 
           if ($msi.Count -ne 2) { throw "Expected two .msi files in artifacts, found $($msi.Count)." }
           if ($exe.Count -ne 2) { throw "Expected two setup .exe files in artifacts, found $($exe.Count)." }
+
+          # An installer cannot be much smaller than the tree it carries.
+          # 1.0.0 shipped a 48 KB .msi because a bad harvest glob left the
+          # payload out and WiX only warned, so every artifact is measured
+          # against the folder it is supposed to package. A quarter is well
+          # under what these actually compress to -- the .NET-bundled
+          # setup.exe manages about a third -- and still catches an
+          # installer that carries nothing at all.
+          $payload = @{}
+
+          foreach ($dir in 'publish', 'publish-fx') {
+            $payload[$dir] = (Get-ChildItem $dir -Recurse -File |
+              Measure-Object Length -Sum).Sum
+          }
+
+          foreach ($file in $msi + $exe) {
+            $dir = if ($file.Name -like '*-framework*') { 'publish-fx' } else { 'publish' }
+            $floor = $payload[$dir] * 0.25
+
+            if ($file.Length -lt $floor) {
+              # The concatenation needs its own parentheses: -f binds
+              # looser than +, so without them it formats only the
+              # second half of the message.
+              throw (("{0} is {1:N1} MB but packages {2} ({3:N1} MB), " +
+                "so it should be at least {4:N1} MB. Its payload is missing.") -f
+                $file.Name, ($file.Length / 1MB), $dir,
+                ($payload[$dir] / 1MB), ($floor / 1MB))
+            }
+          }
 
           $lines = Get-ChildItem artifacts -File | ForEach-Object {
             "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)"
