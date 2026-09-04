@@ -15,6 +15,31 @@ file is the single source of truth for what shipped.
 
 ### Added
 
+- **The `.exe` installers now fetch what they need.** The `-framework`
+  build no longer stops with a link when the .NET 10 Desktop Runtime is
+  missing: it asks first, then downloads it from Microsoft and installs
+  it silently, and refuses to continue only if that genuinely fails.
+  Both `.exe` builds also offer to install `cloudflared`, ticked by
+  default and hidden entirely when the machine already has it -- checked
+  in both `Program Files` locations and on `PATH`, so winget, scoop and
+  a manual copy all count.
+
+  The two are treated differently on purpose. Without .NET the
+  `-framework` build cannot start, so a failed download aborts rather
+  than leaving a shortcut to an app that dies on launch. `cloudflared`
+  is only needed to reach the app from outside, so a failure there warns
+  and carries on.
+
+  Installing `cloudflared` gets you the connector, not a working tunnel:
+  connecting one still needs your own token, which is the point.
+
+  The `.msi` installers do neither, unchanged and deliberately: an MSI
+  cannot download, and deployment tools manage prerequisites themselves.
+
+  The release build now HEADs both URLs before packaging, so a vendor
+  URL that moves fails the release instead of failing on a customer's
+  machine.
+
 - **A request log.** Every request the gateway answers is appended to
   `C:\ProgramData\EasyFbSoft\logs\gateway-<date>.jsonl`, one JSON
   object per line: time, method, path, status, duration, the calling

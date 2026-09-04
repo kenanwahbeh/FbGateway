@@ -130,6 +130,44 @@ jobs:
             -d PublishDir=publish-fx `
             -o artifacts/EasyFbSoft-${{ steps.version.outputs.version }}-x64-framework.msi
 
+      # The .exe installers fetch these on the customer's machine, so a
+      # URL that has moved must fail here, not there. HEAD only; the
+      # point is that the vendor still serves it, not to download it.
+      - name: Check the prerequisite download URLs
+        shell: pwsh
+        run: |
+          $urls = @{
+            '.NET 10 Desktop Runtime' =
+              'https://aka.ms/dotnet/10.0/windowsdesktop-runtime-win-x64.exe'
+            'cloudflared'             =
+              'https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.msi'
+          }
+
+          $failed = @()
+
+          foreach ($name in $urls.Keys) {
+            $url = $urls[$name]
+
+            try {
+              $head = Invoke-WebRequest -Uri $url -Method Head -MaximumRedirection 10
+              $mb = [math]::Round($head.Headers.'Content-Length'[0] / 1MB, 1)
+
+              Write-Host "ok   $name : $mb MB"
+
+              # A few hundred KB back means an error page, not an installer.
+              if ($mb -lt 5) {
+                $failed += "$name returned only $mb MB from $url"
+              }
+            } catch {
+              $failed += "$name is unreachable at $url ($($_.Exception.Message))"
+            }
+          }
+
+          if ($failed) {
+            throw ("Prerequisite downloads are broken:`n  " + ($failed -join "`n  ") +
+              "`n`nUpdate the URL in installer/EasyFbSoft.iss.")
+          }
+
       - name: Build EXE installers
         shell: pwsh
         run: |
