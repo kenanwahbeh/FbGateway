@@ -47,6 +47,44 @@ see [GATEWAY.md](GATEWAY.md).
 Requires 64-bit Windows 8.1 or later. All installers are per-machine
 and ask for administrator rights once.
 
+## It runs as a service
+
+The gateway is a Windows service, `EasyFbSoft`, installed and started
+for you. It starts with the machine and serves with nobody signed in,
+so an unattended server is a supported target and closing the window
+does not take the gateway down with it.
+
+The window is a control panel for that service. It shows two things
+separately, because they are not the same: whether Windows is running
+the service, and whether the gateway is actually answering, which it
+checks by calling `/health` over loopback. A running service whose
+gateway could not bind is exactly what is behind a `502`, so it is
+named rather than reported as healthy.
+
+It asks for administrator rights, because
+`C:\ProgramData\EasyFbSoft` holds your Firebird passwords in the clear
+beside the API key, and that key is all that stands between the public
+internet and those databases. The folder is restricted to
+Administrators and the service account, so no other account on the
+machine can read it.
+
+### Windows Server Core
+
+Server Core has no desktop, so the control panel cannot run there. The
+service executable doubles as an admin tool:
+
+```
+EasyFbSoft.Service.exe status
+EasyFbSoft.Service.exe db add --name Sales --server 127.0.0.1 ^
+    --path C:\data\sales.fdb --user SYSDBA --password secret
+EasyFbSoft.Service.exe key show
+EasyFbSoft.Service.exe port 8080
+```
+
+Changes apply within a few seconds; the service does not need
+restarting. Run `EasyFbSoft.Service.exe --help` for the full list. On a
+machine with a desktop you never need any of this.
+
 ## Quick start
 
 1. **Add a database.** Click **+ Add Data**, fill in the Firebird
@@ -55,7 +93,8 @@ and ask for administrator rights once.
 2. **Turn it Online.** The card's toggle tests the connection first and
    stays Offline if it fails. Only Online connections answer requests.
 3. **Check the gateway.** The **Gateway API** panel should read
-   *Running — http://127.0.0.1:8080*. Press **Copy API Key**.
+   *Answering — http://127.0.0.1:8080*, with *Service: running* beneath
+   it. Press **Copy API Key**.
 4. **Start the tunnel.**
 
    ```
