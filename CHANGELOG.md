@@ -13,6 +13,8 @@ file is the single source of truth for what shipped.
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-09-04
+
 ### Added
 
 - **The gateway runs as a Windows service.** It starts with the machine
@@ -159,5 +161,6 @@ file is the single source of truth for what shipped.
   `C:\ProgramData\FbGateway`, is carried over automatically on first
   start; the old file is left behind as a backup.
 
-[Unreleased]: https://github.com/kenanwahbeh/FbGateway/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/kenanwahbeh/FbGateway/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/kenanwahbeh/FbGateway/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/kenanwahbeh/FbGateway/releases/tag/v1.0.0
