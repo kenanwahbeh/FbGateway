@@ -87,9 +87,27 @@ jobs:
             -p:Version=${{ steps.version.outputs.msiVersion }} `
             -o publish-fx
 
+          # The service goes into the same folders as the control panel.
+          # They share the core library, and the per-app files are named
+          # after their assembly, so nothing collides.
+          dotnet publish service/EasyFbSoft.Service.csproj `
+            -c Release -r win-x64 --self-contained true `
+            -p:Version=${{ steps.version.outputs.msiVersion }} `
+            -o publish
+
+          dotnet publish service/EasyFbSoft.Service.csproj `
+            -c Release -r win-x64 --self-contained false `
+            -p:Version=${{ steps.version.outputs.msiVersion }} `
+            -o publish-fx
+
           foreach ($dir in 'publish', 'publish-fx') {
-            if (-not (Test-Path "$dir/EasyFbSoft.exe")) {
-              throw "$dir/EasyFbSoft.exe is missing; that publish produced nothing to package."
+            # Both must be there. An installer carrying the window but
+            # not the service would register a service whose executable
+            # does not exist, and fail on first start.
+            foreach ($needed in 'EasyFbSoft.exe', 'EasyFbSoft.Service.exe') {
+              if (-not (Test-Path "$dir/$needed")) {
+                throw "$dir/$needed is missing; that publish produced nothing to package."
+              }
             }
 
             $mb = [math]::Round((Get-ChildItem $dir -Recurse -File |

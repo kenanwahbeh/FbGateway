@@ -45,7 +45,16 @@ public static class Program
          * sharing it costs nothing and keeps the migration and schema
          * setup to a single run at startup.
          */
-        builder.Services.AddSingleton<SqliteDatabase>();
+        builder.Services.AddSingleton(provider =>
+        {
+            var database = new SqliteDatabase();
+
+            DataFolderSecurity.Ensure(
+                Path.GetDirectoryName(database.LogDirectory)!,
+                provider.GetRequiredService<ILogger<GatewayWorker>>());
+
+            return database;
+        });
 
         builder.Services.AddSingleton(provider =>
         {
