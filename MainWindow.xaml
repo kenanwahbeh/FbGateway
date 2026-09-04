@@ -59,6 +59,11 @@
                                Margin="0,6,0,0"
                                FontSize="14"/>
 
+                    <TextBlock x:Name="ServiceStatusTextBlock"
+                               Margin="0,4,0,0"
+                               FontSize="12"
+                               Foreground="Gray"/>
+
                     <TextBlock x:Name="GatewayHintTextBlock"
                                Margin="0,5,12,0"
                                FontSize="12"
@@ -92,6 +97,13 @@
                             Padding="12,7"
                             Margin="5,0,0,0"
                             Click="RegenerateKeyButton_Click"/>
+
+                    <Button x:Name="StartServiceButton"
+                            Content="Start Service"
+                            Padding="12,7"
+                            Margin="5,0,0,0"
+                            Visibility="Collapsed"
+                            Click="StartServiceButton_Click"/>
 
                     <Button x:Name="GatewayToggleButton"
                             Content="Start"

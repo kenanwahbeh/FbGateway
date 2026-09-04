@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<assembly manifestVersion="1.0" xmlns="urn:schemas-microsoft-com:asm.v1">
+
+  <assemblyIdentity version="1.0.0.0" name="EasyFbSoft.app"/>
+
+  <!--
+    Runs elevated, always.
+
+    The control panel reads and writes C:\ProgramData\EasyFbSoft, which
+    holds the Firebird passwords in the clear and the gateway API key.
+    That key is the only thing between the public internet, by way of
+    the tunnel, and those databases, so the folder is locked to
+    Administrators and SYSTEM by the installer and nobody else can read
+    it.
+
+    Running unelevated was considered and rejected: it would have meant
+    granting the Users group access to that folder, which on a server
+    with several accounts hands every one of them the key and every
+    database password. One consent prompt is the cheaper price.
+
+    Starting and stopping the service needs these rights in any case.
+  -->
+  <trustInfo xmlns="urn:schemas-microsoft-com:asm.v2">
+    <security>
+      <requestedPrivileges xmlns="urn:schemas-microsoft-com:asm.v3">
+        <requestedExecutionLevel level="requireAdministrator" uiAccess="false"/>
+      </requestedPrivileges>
+    </security>
+  </trustInfo>
+
+  <compatibility xmlns="urn:schemas-microsoft-com:compatibility.v1">
+    <application>
+      <!-- Windows 8.1, matching the installers' floor -->
+      <supportedOS Id="{1f676c76-80e1-4239-95bb-83d0f6d0da78}"/>
+      <!-- Windows 10 and 11 -->
+      <supportedOS Id="{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}"/>
+    </application>
+  </compatibility>
+
+</assembly>
