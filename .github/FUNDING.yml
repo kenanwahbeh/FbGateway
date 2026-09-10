@@ -1,0 +1,10 @@
+# Turns on the repository's Sponsor button. GitHub reads this file from
+# the default branch, and every entry under `custom` has to be a URL.
+#
+# GitHub has no Binance provider, so both entries are custom links: the
+# README section, which carries the USDT address, the network warning and
+# the QR code, and the Binance Pay link on its own.
+
+custom:
+  - https://github.com/kenanwahbeh/FbGateway#support-the-project
+  - https://app.binance.com/uni-qr/YVVoCnjG
