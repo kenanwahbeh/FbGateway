@@ -34,10 +34,10 @@ public static class Program
          * anyone can read them when nobody is signed in.
          */
         builder.Services.AddWindowsService(options =>
-            options.ServiceName = "EasyFbSoft");
+            options.ServiceName = "ByteBridge");
 
         builder.Logging.AddEventLog(settings =>
-            settings.SourceName = "Easy FB Soft");
+            settings.SourceName = "ByteBridge");
 
         /*
          * One SqliteDatabase and one GatewayServer for the lifetime of

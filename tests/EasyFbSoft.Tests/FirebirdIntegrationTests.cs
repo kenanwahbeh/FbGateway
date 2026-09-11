@@ -8,7 +8,7 @@ namespace FbGateway.Tests;
 /*
  * End to end against a real Firebird server: HTTP in, rows out.
  *
- * Skipped unless EASYFBSOFT_TEST_FIREBIRD names one, so a clone with no
+ * Skipped unless BYTEBRIDGE_TEST_FIREBIRD names one, so a clone with no
  * Firebird still gets a green run. See FirebirdFactAttribute.
  *
  * The schema is created on first use and left in place; every test

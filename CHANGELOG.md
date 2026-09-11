@@ -1,6 +1,6 @@
 # Changelog
 
-Everything worth knowing about each release of Easy FB Soft.
+Everything worth knowing about each release of ByteBridge.
 
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and the version numbers follow [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
@@ -133,7 +133,7 @@ file is the single source of truth for what shipped.
   machine.
 
 - **A request log.** Every request the gateway answers is appended to
-  `C:\ProgramData\EasyFbSoft\logs\gateway-<date>.jsonl`, one JSON
+  `C:\ProgramData\ByteBridge\logs\gateway-<date>.jsonl`, one JSON
   object per line: time, method, path, status, duration, the calling
   address, whether the key was accepted, and for a query the statement,
   the connection and the row count. Rejected requests are recorded too,
@@ -210,10 +210,10 @@ file is the single source of truth for what shipped.
 
 ### Notes
 
-- Settings live in `C:\ProgramData\EasyFbSoft\easyfbsoft.db`. A file
-  written by a build from before the rename, under
-  `C:\ProgramData\FbGateway`, is carried over automatically on first
-  start; the old file is left behind as a backup.
+- Settings live in `C:\ProgramData\ByteBridge\bytebridge.db`. Files
+  written by earlier builds, under `C:\ProgramData\EasyFbSoft` or
+  `C:\ProgramData\FbGateway`, are carried over automatically on first
+  start; the old files are left behind as backups.
 
 [Unreleased]: https://github.com/kenanwahbeh/FbGateway/compare/v1.1.0...HEAD
 [1.1.0]: https://github.com/kenanwahbeh/FbGateway/compare/v1.0.0...v1.1.0

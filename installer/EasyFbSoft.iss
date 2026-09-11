@@ -1,4 +1,4 @@
-; Inno Setup script for the Easy FB Soft .exe installer.
+; Inno Setup script for the ByteBridge .exe installer.
 ;
 ; Built by .github/workflows/release.yml. One script builds both
 ; distributions:
@@ -14,7 +14,7 @@
 ; ..\ itself.
 ;
 ; AppId identifies the product across every release and both
-; distributions, so a machine ends up with one Easy FB Soft rather
+; distributions, so a machine ends up with one ByteBridge rather
 ; than two competing installs. It must never change.
 
 #ifndef AppVersion
@@ -29,12 +29,12 @@
   #define Variant ""
 #endif
 
-#define AppName      "Easy FB Soft"
-#define AppPublisher "Easy FB Soft"
-#define AppExeName   "EasyFbSoft.exe"
-#define ServiceExe   "EasyFbSoft.Service.exe"
-#define ServiceName  "EasyFbSoft"
-#define ServiceLabel "Easy FB Soft Gateway"
+#define AppName      "ByteBridge"
+#define AppPublisher "ByteBridge"
+#define AppExeName   "ByteBridge.exe"
+#define ServiceExe   "ByteBridge.Service.exe"
+#define ServiceName  "ByteBridge"
+#define ServiceLabel "ByteBridge Gateway"
 #define AppUrl       "https://github.com/kenanwahbeh/FbGateway"
 
 ; Prerequisites Setup can fetch on the customer's machine. Both are
@@ -84,7 +84,7 @@ UninstallDisplayIcon={app}\{#AppExeName}
 UninstallDisplayName={#AppName}
 
 OutputDir=..\artifacts
-OutputBaseFilename=EasyFbSoft-{#AppVersion}-x64{#Variant}-setup
+OutputBaseFilename=ByteBridge-{#AppVersion}-x64{#Variant}-setup
 
 ; The bundled build is a self-contained .NET tree, so it compresses
 ; well but is large; solid LZMA2 keeps the download reasonable.
@@ -113,7 +113,7 @@ Name: "cloudflared"; \
 [Dirs]
 ; Created here so the installer owns its permissions rather than
 ; whichever account happens to start the service first.
-Name: "{commonappdata}\EasyFbSoft"
+Name: "{commonappdata}\ByteBridge"
 
 [Files]
 Source: "..\{#PublishDir}\*"; \
@@ -308,7 +308,7 @@ begin
     if not TryDownload('{#CloudflaredUrl}', 'cloudflared.msi', CloudflaredSetup) then
       MsgBox('cloudflared could not be downloaded, so it will be skipped.'
              + #13#10#13#10
-             + 'Easy FB Soft itself will still install. You can add cloudflared later from'
+             + 'ByteBridge itself will still install. You can add cloudflared later from'
              + ' https://github.com/cloudflare/cloudflared/releases.',
              mbInformation, MB_OK);
 end;
@@ -397,11 +397,11 @@ begin
       else if Code <> 0 then
         MsgBox(Format('cloudflared did not install (installer code %d).', [Code])
                + #13#10#13#10
-               + 'Easy FB Soft is installed and will work locally; add cloudflared later'
+               + 'ByteBridge is installed and will work locally; add cloudflared later'
                + ' to reach it through a tunnel.', mbInformation, MB_OK);
     end
     else
-      MsgBox('cloudflared could not be installed, but Easy FB Soft is installed'
+      MsgBox('cloudflared could not be installed, but ByteBridge is installed'
              + ' and will work locally.', mbInformation, MB_OK);
   end;
 end;
@@ -418,7 +418,7 @@ var
   Code: Integer;
   Folder: String;
 begin
-  Folder := ExpandConstant('{commonappdata}\EasyFbSoft');
+  Folder := ExpandConstant('{commonappdata}\ByteBridge');
 
   {
     The settings file holds the Firebird passwords in the clear and the
@@ -457,11 +457,11 @@ begin
     quote. What sc ends up storing is the path with quotes around it.
 
     Which is what is wanted: an unquoted ImagePath containing spaces,
-    and "C:\\Program Files\\Easy FB Soft" certainly does, is the classic
+    and "C:\\Program Files\\ByteBridge" certainly does, is the classic
     unquoted-service-path privilege escalation. Windows would try
     C:\\Program.exe first.
 
-    Confirm after installing with:  sc qc EasyFbSoft
+     Confirm after installing with:  sc qc ByteBridge
     BINARY_PATH_NAME must show the full path wrapped in quotes.
 
     Note also the space after every "=", which sc requires.
@@ -477,7 +477,7 @@ begin
 
     if Code <> 0 then
     begin
-      MsgBox('The Easy FB Soft service could not be registered (code '
+      MsgBox('The ByteBridge service could not be registered (code '
              + IntToStr(Code) + ').'#13#10#13#10
              + 'The application is installed, but the gateway will not run '
              + 'until the service exists.',
@@ -487,7 +487,7 @@ begin
     end;
   end;
 
-  Sc('description {#ServiceName} "Serves the Easy FB Soft HTTP gateway over '
+  Sc('description {#ServiceName} "Serves the ByteBridge HTTP gateway over '
      + 'the configured Firebird databases, so it runs without anyone signed in."',
      Code);
 

@@ -1,17 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  MSI definition for Easy FB Soft.
+  MSI definition for ByteBridge.
 
   Built by .github/workflows/release.yml, which passes the version
   from the git tag and the folder to package:
 
     wix build installer/Package.wxs -arch x64 -wx8600 -wx8601 ^
       -pdbtype none -d Version=1.2.3 -d PublishDir=publish ^
-      -o EasyFbSoft-1.2.3-x64.msi
+       -o ByteBridge-1.2.3-x64.msi
 
   The same file builds both distributions; only PublishDir differs.
   They share one product identity on purpose, so a machine ends up
-  with one Easy FB Soft rather than two competing installs. Switching
+  with one ByteBridge rather than two competing installs. Switching
   between them at the same version means uninstalling first, because
   an MSI major upgrade will not replace an equal version.
 
@@ -21,14 +21,14 @@
 -->
 <Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
 
-  <Package Name="Easy FB Soft"
-           Manufacturer="Easy FB Soft"
+  <Package Name="ByteBridge"
+           Manufacturer="ByteBridge"
            Version="$(var.Version)"
            UpgradeCode="736F45BA-01C2-45C9-98AF-58170F4E9B5D"
            Scope="perMachine"
            Compressed="yes">
 
-    <MajorUpgrade DowngradeErrorMessage="A newer version of Easy FB Soft is already installed. Uninstall it first to install this version." />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of ByteBridge is already installed. Uninstall it first to install this version." />
 
     <MediaTemplate EmbedCab="yes" />
 
@@ -45,17 +45,17 @@
       with no desktop at all is usable.
     -->
     <Launch Condition="Installed OR VersionNT &gt;= 603"
-            Message="Easy FB Soft requires Windows 8.1 or later." />
+            Message="ByteBridge requires Windows 8.1 or later." />
 
     <StandardDirectory Id="ProgramFiles6432Folder">
-      <Directory Id="INSTALLFOLDER" Name="Easy FB Soft" />
+      <Directory Id="INSTALLFOLDER" Name="ByteBridge" />
     </StandardDirectory>
 
     <StandardDirectory Id="ProgramMenuFolder">
-      <Directory Id="AppMenuFolder" Name="Easy FB Soft" />
+      <Directory Id="AppMenuFolder" Name="ByteBridge" />
     </StandardDirectory>
 
-    <Feature Id="Main" Title="Easy FB Soft" Level="1">
+    <Feature Id="Main" Title="ByteBridge" Level="1">
       <ComponentGroupRef Id="AppFiles" />
       <ComponentRef Id="GatewayService" />
       <ComponentRef Id="StartMenuShortcut" />
@@ -84,7 +84,7 @@
           the executable it registers, and a harvested file lands in a
           component whose id is generated and cannot be referred to.
         -->
-        <Exclude Files="../$(var.PublishDir)/EasyFbSoft.Service.exe" />
+        <Exclude Files="../$(var.PublishDir)/ByteBridge.Service.exe" />
       </Files>
     </ComponentGroup>
 
@@ -104,7 +104,7 @@
                Guid="5C1D7A64-9E0B-4E6E-9E2A-2F4C6B8D1A37">
 
       <File Id="ServiceExecutable"
-            Source="$(var.PublishDir)/EasyFbSoft.Service.exe"
+            Source="$(var.PublishDir)/ByteBridge.Service.exe"
             KeyPath="yes" />
 
       <!--
@@ -113,9 +113,9 @@
         settings folder both need that level of rights.
       -->
       <ServiceInstall Id="GatewayServiceInstall"
-                      Name="EasyFbSoft"
-                      DisplayName="Easy FB Soft Gateway"
-                      Description="Serves the Easy FB Soft HTTP gateway over the configured Firebird databases, so it runs without anyone signed in."
+                      Name="ByteBridge"
+                      DisplayName="ByteBridge Gateway"
+                      Description="Serves the ByteBridge HTTP gateway over the configured Firebird databases, so it runs without anyone signed in."
                       Type="ownProcess"
                       Start="auto"
                       ErrorControl="normal"
@@ -127,7 +127,7 @@
         frees the executable so the new one can replace it.
       -->
       <ServiceControl Id="GatewayServiceControl"
-                      Name="EasyFbSoft"
+                      Name="ByteBridge"
                       Start="install"
                       Stop="both"
                       Remove="uninstall"
@@ -140,9 +140,9 @@
                Guid="914069B5-97EC-41E4-BE3B-D6EA012353DD">
 
       <Shortcut Id="AppShortcut"
-                Name="Easy FB Soft"
+                Name="ByteBridge"
                 Description="HTTP gateway for Firebird databases"
-                Target="[INSTALLFOLDER]EasyFbSoft.exe"
+                 Target="[INSTALLFOLDER]ByteBridge.exe"
                 WorkingDirectory="INSTALLFOLDER"
                 Icon="AppIcon" />
 
@@ -151,7 +151,7 @@
                     On="uninstall" />
 
       <RegistryValue Root="HKMU"
-                     Key="Software\EasyFbSoft"
+                      Key="Software\ByteBridge"
                      Name="Installed"
                      Type="integer"
                      Value="1"

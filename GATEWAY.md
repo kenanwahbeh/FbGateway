@@ -1,12 +1,12 @@
-# Easy FB Soft HTTP API
+# ByteBridge HTTP API
 
-Easy FB Soft exposes the configured Firebird connections over a small
+ByteBridge exposes the configured Firebird connections over a small
 JSON API on loopback, so a Cloudflare Tunnel running on the same
 machine has something to forward requests to.
 
 The listener starts with the machine. Its status, port and API key are
 shown in the **Gateway API** panel of the control panel window.
-The gateway itself runs as the `EasyFbSoft` Windows service, so it is
+The gateway itself runs as the `ByteBridge` Windows service, so it is
 up whether or not that window is open.
 
 ## Endpoints
@@ -153,7 +153,7 @@ curl https://fbgateway.example.com/health
 ```
 
 ```json
-{ "status": "ok", "service": "EasyFbSoft", "connections": 2, "online": 1, ... }
+{ "status": "ok", "service": "ByteBridge", "connections": 2, "online": 1, ... }
 ```
 
 Anyone who reaches the hostname can try the API, so treat the key as
@@ -163,7 +163,7 @@ worth adding if the data is sensitive.
 ## The request log
 
 Every request the gateway answers is appended to
-`C:\ProgramData\EasyFbSoft\logs\gateway-<date>.jsonl`, one JSON object
+`C:\ProgramData\ByteBridge\logs\gateway-<date>.jsonl`, one JSON object
 per line:
 
 ```json
@@ -256,7 +256,7 @@ tasklist /fi "pid eq <pid>"
 ```
 
 **"Windows refused to reserve ..."** — HTTP.SYS wants a URL
-reservation. Run Easy FB Soft as administrator once, or grant it from
+reservation. Run ByteBridge as administrator once, or grant it from
 an elevated prompt:
 
 ```

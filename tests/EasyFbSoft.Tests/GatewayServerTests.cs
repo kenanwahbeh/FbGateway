@@ -35,7 +35,7 @@ public class GatewayServerTests : IClassFixture<GatewayHarness>
     {
         var (_, body) = await GatewayHarness.Read(_gateway.Get("/health", key: ""));
 
-        Assert.Contains("\"service\":\"EasyFbSoft\"", body);
+        Assert.Contains("\"service\":\"ByteBridge\"", body);
         Assert.Contains("\"connections\":2", body);
         Assert.Contains("\"online\":1", body);
     }

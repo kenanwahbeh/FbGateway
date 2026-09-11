@@ -4,10 +4,10 @@ Four installers, one application — pick **one**.
 
 | File | .NET | Use it when |
 | ---- | ---- | ----------- |
-| `EasyFbSoft-{{VERSION}}-x64-setup.exe` | included | **Start here.** Normal desktop install, nothing else to install. |
-| `EasyFbSoft-{{VERSION}}-x64.msi` | included | Deploying with Group Policy, Intune or a script. |
-| `EasyFbSoft-{{VERSION}}-x64-framework-setup.exe` | fetched | Much smaller download; Setup installs the .NET runtime if the machine lacks it. |
-| `EasyFbSoft-{{VERSION}}-x64-framework.msi` | required | Scripted deployment where the runtime is managed separately. |
+| `ByteBridge-{{VERSION}}-x64-setup.exe` | included | **Start here.** Normal desktop install, nothing else to install. |
+| `ByteBridge-{{VERSION}}-x64.msi` | included | Deploying with Group Policy, Intune or a script. |
+| `ByteBridge-{{VERSION}}-x64-framework-setup.exe` | fetched | Much smaller download; Setup installs the .NET runtime if the machine lacks it. |
+| `ByteBridge-{{VERSION}}-x64-framework.msi` | required | Scripted deployment where the runtime is managed separately. |
 
 The `-framework` builds need the
 [.NET 10 Desktop Runtime (x64)](https://dotnet.microsoft.com/download/dotnet/10.0).
@@ -30,7 +30,7 @@ version means uninstalling first.
 
 ### It runs as a service
 
-The gateway is installed and started as the `EasyFbSoft` Windows
+The gateway is installed and started as the `ByteBridge` Windows
 service. It starts with the machine and serves with nobody signed in,
 so closing the window no longer takes the gateway down.
 
@@ -40,11 +40,11 @@ and the API key, and is restricted to Administrators and the service
 account.
 
 On **Windows Server Core**, where there is no desktop, configure it from
-a terminal instead: `EasyFbSoft.Service.exe --help`.
+a terminal instead: `ByteBridge.Service.exe --help`.
 
 ### After installing
 
-Start Easy FB Soft, add a Firebird connection and turn it Online, then
+Start ByteBridge, add a Firebird connection and turn it Online, then
 point your tunnel at the address shown in the Gateway API panel:
 
 ```
