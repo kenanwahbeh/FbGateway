@@ -260,3 +260,24 @@ To test the packaging without publishing anything, run the **Release**
 workflow manually from the Actions tab. It builds the same four
 installers, prints the release body it would have used, and leaves the
 files as workflow artifacts — no tag, no release.
+
+## Support the project
+
+Easy FB Soft is free and stays free. If it is useful to you, you can
+support the work that keeps it going: maintenance, testing against real
+Firebird servers, documentation, and the next round of improvements. It
+is entirely optional, and nothing in the app is held back from people
+who skip it.
+
+**USDT on TRON (TRC20).**
+
+```
+TBFPWgdUeABgwTX5R7Cvha8ffFouuk2jDt
+```
+
+Send only USDT, and only over the **TRON (TRC20)** network. Anything sent
+on a different network, or as a different asset, is not recoverable.
+
+That is a receiving address and nothing more. Nobody working on this
+project will ever ask you for a private key, a seed phrase, a password,
+or the credentials to an exchange account.

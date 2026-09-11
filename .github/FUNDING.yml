@@ -1,0 +1,9 @@
+# Turns on the repository's Sponsor button. GitHub reads this file from
+# the default branch, and every entry under `custom` has to be a URL.
+#
+# GitHub has no provider for a plain crypto address, so the button points
+# at the README section instead. That keeps the network warning in front
+# of anyone before they send anything.
+
+custom:
+  - https://github.com/kenanwahbeh/FbGateway#support-the-project
