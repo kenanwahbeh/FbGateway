@@ -19,7 +19,7 @@ namespace FbGateway.Admin;
 public static class Cli
 {
     public const string Usage = """
-        Easy FB Soft gateway service
+        ByteBridge gateway service
 
         Running with no arguments starts the Windows service. The
         commands below configure it from a terminal, for machines with

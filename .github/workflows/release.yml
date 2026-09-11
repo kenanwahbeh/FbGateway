@@ -104,7 +104,7 @@ jobs:
             # Both must be there. An installer carrying the window but
             # not the service would register a service whose executable
             # does not exist, and fail on first start.
-            foreach ($needed in 'EasyFbSoft.exe', 'EasyFbSoft.Service.exe') {
+            foreach ($needed in 'ByteBridge.exe', 'ByteBridge.Service.exe') {
               if (-not (Test-Path "$dir/$needed")) {
                 throw "$dir/$needed is missing; that publish produced nothing to package."
               }
@@ -140,13 +140,13 @@ jobs:
             -pdbtype none `
             -d Version=${{ steps.version.outputs.msiVersion }} `
             -d PublishDir=publish `
-            -o artifacts/EasyFbSoft-${{ steps.version.outputs.version }}-x64.msi
+            -o artifacts/ByteBridge-${{ steps.version.outputs.version }}-x64.msi
 
           wix build installer/Package.wxs -arch x64 -wx8600 -wx8601 `
             -pdbtype none `
             -d Version=${{ steps.version.outputs.msiVersion }} `
             -d PublishDir=publish-fx `
-            -o artifacts/EasyFbSoft-${{ steps.version.outputs.version }}-x64-framework.msi
+            -o artifacts/ByteBridge-${{ steps.version.outputs.version }}-x64-framework.msi
 
       # The .exe installers fetch these on the customer's machine, so a
       # URL that has moved must fail here, not there. HEAD only; the
@@ -337,6 +337,6 @@ jobs:
             gh release upload $tag $files --clobber
           } else {
             gh release create $tag $files `
-              --title "Easy FB Soft $tag" `
+              --title "ByteBridge $tag" `
               --notes-file release-notes.md
           }

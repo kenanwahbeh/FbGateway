@@ -61,7 +61,7 @@ public class SqliteDatabase
                 Environment.SpecialFolder.CommonApplicationData);
 
         var directory =
-            Path.Combine(commonData, "EasyFbSoft");
+            Path.Combine(commonData, "ByteBridge");
 
         Directory.CreateDirectory(directory);
 
@@ -85,7 +85,7 @@ public class SqliteDatabase
         DataDirectory = directory;
 
         _databasePath =
-            Path.Combine(directory, "easyfbsoft.db");
+            Path.Combine(directory, "bytebridge.db");
 
         LogDirectory = Path.Combine(directory, "logs");
 
@@ -98,8 +98,8 @@ public class SqliteDatabase
     }
 
     /*
-     * Carries over the settings file from the name the app shipped
-     * under before it became Easy FB Soft.
+     * Carries over the settings file from the names the app shipped
+     * under before it became ByteBridge.
      *
      * The old file is copied rather than moved, so it stays behind as
      * a backup and a failed copy cannot lose the only copy of
@@ -113,54 +113,66 @@ public class SqliteDatabase
             return;
         }
 
-        var legacy =
-            Path.Combine(commonData, "FbGateway", "fbgateway.db");
-
-        if (!File.Exists(legacy))
-        {
-            return;
-        }
-
         /*
-         * Copied under a temporary name and moved into place only once
-         * the copy has finished. File.Copy is not atomic, so a copy that
-         * failed part-way straight onto the real name left a truncated
-         * file there: opening it failed or came back missing rows, and
-         * the File.Exists check above took it for a finished migration
-         * on every later start.
+         * Newest first: a machine that ran every generation has all
+         * three, and the EasyFbSoft one is the live settings.
          */
-        var partial = _databasePath + ".migrating";
-
-        try
+        var candidates = new[]
         {
-            File.Delete(partial);
+            Path.Combine(commonData, "EasyFbSoft", "easyfbsoft.db"),
+            Path.Combine(commonData, "FbGateway", "fbgateway.db")
+        };
 
-            File.Copy(legacy, partial);
-
-            /*
-             * File.Copy carries the source's attributes across, so a
-             * legacy file that had been marked read-only -- restored
-             * from a backup, or copied off a share -- would arrive
-             * read-only and make every later write fail with
-             * "attempt to write a readonly database".
-             */
-            var copied = new FileInfo(partial);
-
-            if (copied.IsReadOnly)
+        foreach (var legacy in candidates)
+        {
+            if (!File.Exists(legacy))
             {
-                copied.IsReadOnly = false;
+                continue;
             }
 
-            File.Move(partial, _databasePath);
-        }
-        catch (IOException)
-        {
-            // Start with an empty database rather than failing to open.
-            TryDelete(partial);
-        }
-        catch (UnauthorizedAccessException)
-        {
-            TryDelete(partial);
+            /*
+             * Copied under a temporary name and moved into place only once
+             * the copy has finished. File.Copy is not atomic, so a copy that
+             * failed part-way straight onto the real name left a truncated
+             * file there: opening it failed or came back missing rows, and
+             * the File.Exists check above took it for a finished migration
+             * on every later start.
+             */
+            var partial = _databasePath + ".migrating";
+
+            try
+            {
+                File.Delete(partial);
+
+                File.Copy(legacy, partial);
+
+                /*
+                 * File.Copy carries the source's attributes across, so a
+                 * legacy file that had been marked read-only -- restored
+                 * from a backup, or copied off a share -- would arrive
+                 * read-only and make every later write fail with
+                 * "attempt to write a readonly database".
+                 */
+                var copied = new FileInfo(partial);
+
+                if (copied.IsReadOnly)
+                {
+                    copied.IsReadOnly = false;
+                }
+
+                File.Move(partial, _databasePath);
+            }
+            catch (IOException)
+            {
+                // Start with an empty database rather than failing to open.
+                TryDelete(partial);
+            }
+            catch (UnauthorizedAccessException)
+            {
+                TryDelete(partial);
+            }
+
+            return;
         }
     }
 
@@ -245,6 +257,14 @@ public class SqliteDatabase
             (
                 SettingKey TEXT NOT NULL PRIMARY KEY,
                 SettingValue TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS Sessions
+            (
+                Token TEXT NOT NULL PRIMARY KEY,
+                UserEmail TEXT NOT NULL,
+                CreatedAt TEXT NOT NULL,
+                ExpiresAt TEXT NOT NULL
             );
             """;
 
@@ -838,12 +858,184 @@ public class SqliteDatabase
         return apiKey;
     }
 
+    /*
+     * OAuth configuration management.
+     */
+
+    public OAuthConfig GetOAuthConfig()
+    {
+        var config = new OAuthConfig();
+
+        config.Enabled =
+            GetSetting("OAuth.Enabled") == "1";
+
+        var teamDomain = GetSetting("OAuth.TeamDomain");
+
+        if (!string.IsNullOrWhiteSpace(teamDomain))
+        {
+            config.TeamDomain = teamDomain;
+        }
+
+        var audience = GetSetting("OAuth.Audience");
+
+        if (!string.IsNullOrWhiteSpace(audience))
+        {
+            config.Audience = audience;
+        }
+
+        var jwksUri = GetSetting("OAuth.JwksUri");
+
+        if (!string.IsNullOrWhiteSpace(jwksUri))
+        {
+            config.JwksUri = jwksUri;
+        }
+
+        if (int.TryParse(
+                GetSetting("OAuth.SessionTimeoutMinutes"),
+                out var timeout) &&
+            timeout > 0)
+        {
+            config.SessionTimeoutMinutes = timeout;
+        }
+
+        var redirectUri = GetSetting("OAuth.RedirectUri");
+
+        if (!string.IsNullOrWhiteSpace(redirectUri))
+        {
+            config.RedirectUri = redirectUri;
+        }
+
+        return config;
+    }
+
+    public void SaveOAuthConfig(OAuthConfig config)
+    {
+        SetSetting(
+            "OAuth.Enabled",
+            config.Enabled ? "1" : "0");
+
+        SetSetting("OAuth.TeamDomain", config.TeamDomain);
+
+        SetSetting("OAuth.Audience", config.Audience);
+
+        SetSetting("OAuth.JwksUri", config.JwksUri);
+
+        SetSetting(
+            "OAuth.SessionTimeoutMinutes",
+            config.SessionTimeoutMinutes.ToString());
+
+        SetSetting("OAuth.RedirectUri", config.RedirectUri);
+    }
+
     private static string GenerateApiKey()
     {
         return Convert
             .ToHexString(
                 RandomNumberGenerator.GetBytes(32))
             .ToLowerInvariant();
+    }
+
+    /*
+     * OAuth session management.
+     */
+
+    public void CreateSession(
+        string token,
+        string userEmail,
+        DateTime expiresAt)
+    {
+        using var connection = OpenConnection();
+        using var command = connection.CreateCommand();
+
+        command.CommandText = """
+            INSERT INTO Sessions
+            (
+                Token,
+                UserEmail,
+                CreatedAt,
+                ExpiresAt
+            )
+            VALUES
+            (
+                $token,
+                $email,
+                $createdAt,
+                $expiresAt
+            );
+            """;
+
+        command.Parameters.AddWithValue("$token", token);
+        command.Parameters.AddWithValue("$email", userEmail);
+        command.Parameters.AddWithValue(
+            "$createdAt", DateTime.UtcNow.ToString("O"));
+        command.Parameters.AddWithValue(
+            "$expiresAt", expiresAt.ToString("O"));
+
+        command.ExecuteNonQuery();
+    }
+
+    public Gateway.Session? GetSession(string token)
+    {
+        using var connection = OpenConnection();
+        using var command = connection.CreateCommand();
+
+        command.CommandText = """
+            SELECT
+                Token,
+                UserEmail,
+                CreatedAt,
+                ExpiresAt
+            FROM Sessions
+            WHERE Token = $token;
+            """;
+
+        command.Parameters.AddWithValue("$token", token);
+
+        using var reader = command.ExecuteReader();
+
+        if (!reader.Read())
+        {
+            return null;
+        }
+
+        return new Gateway.Session
+        {
+            Token = reader.GetString(0),
+            UserEmail = reader.GetString(1),
+            CreatedAt = DateTime.Parse(reader.GetString(2)),
+            ExpiresAt = DateTime.Parse(reader.GetString(3))
+        };
+    }
+
+    public void DeleteSession(string token)
+    {
+        using var connection = OpenConnection();
+        using var command = connection.CreateCommand();
+
+        command.CommandText = """
+            DELETE FROM Sessions
+            WHERE Token = $token;
+            """;
+
+        command.Parameters.AddWithValue("$token", token);
+
+        command.ExecuteNonQuery();
+    }
+
+    public void DeleteExpiredSessions()
+    {
+        using var connection = OpenConnection();
+        using var command = connection.CreateCommand();
+
+        command.CommandText = """
+            DELETE FROM Sessions
+            WHERE ExpiresAt < $now;
+            """;
+
+        command.Parameters.AddWithValue(
+            "$now", DateTime.UtcNow.ToString("O"));
+
+        command.ExecuteNonQuery();
     }
 
     private static void AddParameters(

@@ -24,7 +24,7 @@ public sealed class TempDataRoot : IDisposable
     {
         Path = System.IO.Path.Combine(
             System.IO.Path.GetTempPath(),
-            "easyfbsoft-tests",
+            "bytebridge-tests",
             Guid.NewGuid().ToString("n"));
 
         Directory.CreateDirectory(Path);
@@ -38,8 +38,14 @@ public sealed class TempDataRoot : IDisposable
     public string LegacyDatabasePath =>
         System.IO.Path.Combine(Path, "FbGateway", "fbgateway.db");
 
-    public string CurrentDatabasePath =>
+    /*
+     * The path a build shipped as EasyFbSoft would have written to.
+     */
+    public string PreviousDatabasePath =>
         System.IO.Path.Combine(Path, "EasyFbSoft", "easyfbsoft.db");
+
+    public string CurrentDatabasePath =>
+        System.IO.Path.Combine(Path, "ByteBridge", "bytebridge.db");
 
     public void Dispose()
     {
@@ -204,7 +210,7 @@ public sealed class GatewayHarness : IDisposable
 /*
  * Marks a test that needs a real Firebird server.
  *
- * Set EASYFBSOFT_TEST_FIREBIRD to a connection spec to run them:
+ * Set BYTEBRIDGE_TEST_FIREBIRD to a connection spec to run them:
  *
  *   host:port:user:password:/path/or/alias
  *
@@ -218,7 +224,7 @@ public sealed class FirebirdFactAttribute : FactAttribute
         if (FirebirdTestServer.Connection == null)
         {
             Skip =
-                "Set EASYFBSOFT_TEST_FIREBIRD=host:port:user:password:database " +
+                "Set BYTEBRIDGE_TEST_FIREBIRD=host:port:user:password:database " +
                 "to run the live Firebird tests.";
         }
     }
@@ -236,7 +242,7 @@ public sealed class FirebirdTheoryAttribute : TheoryAttribute
         if (FirebirdTestServer.Connection == null)
         {
             Skip =
-                "Set EASYFBSOFT_TEST_FIREBIRD=host:port:user:password:database " +
+                "Set BYTEBRIDGE_TEST_FIREBIRD=host:port:user:password:database " +
                 "to run the live Firebird tests.";
         }
     }
@@ -244,7 +250,7 @@ public sealed class FirebirdTheoryAttribute : TheoryAttribute
 
 internal static class FirebirdTestServer
 {
-    public const string Variable = "EASYFBSOFT_TEST_FIREBIRD";
+    public const string Variable = "BYTEBRIDGE_TEST_FIREBIRD";
 
     public static DatabaseConfig? Connection { get; } = Parse();
 

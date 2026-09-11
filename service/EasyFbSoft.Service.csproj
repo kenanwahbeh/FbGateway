@@ -10,7 +10,7 @@
 
     Targets net10.0-windows because hosting as a service and writing to
     the event log are Windows APIs. The gateway itself lives in
-    EasyFbSoft.Core and stays portable.
+    ByteBridge.Core and stays portable.
   -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
@@ -18,11 +18,11 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>FbGateway.Service</RootNamespace>
-    <AssemblyName>EasyFbSoft.Service</AssemblyName>
-    <Product>Easy FB Soft</Product>
-    <Company>Easy FB Soft</Company>
-    <Description>Easy FB Soft gateway service</Description>
-    <Copyright>Copyright © Easy FB Soft</Copyright>
+    <AssemblyName>ByteBridge.Service</AssemblyName>
+    <Product>ByteBridge</Product>
+    <Company>ByteBridge</Company>
+    <Description>ByteBridge gateway service</Description>
+    <Copyright>Copyright © ByteBridge</Copyright>
     <Version>1.0.0</Version>
   </PropertyGroup>
 

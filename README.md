@@ -1,4 +1,4 @@
-# Easy FB Soft
+# ByteBridge
 
 A Windows desktop app that puts a small, authenticated HTTP API in
 front of your Firebird databases, so they can be reached from outside
@@ -13,7 +13,7 @@ want Online, and the app serves them as JSON over `127.0.0.1`.
 flowchart LR
     C["Your app<br/>or browser"] -->|"HTTPS + X-API-Key"| E["Cloudflare<br/>edge"]
     E -->|"outbound tunnel"| D["cloudflared<br/>(your PC)"]
-    D -->|"http://127.0.0.1:8080"| G["Easy FB Soft"]
+    D -->|"http://127.0.0.1:8080"| G["ByteBridge"]
     G -->|"port 3050"| F[("Firebird")]
 ```
 
@@ -28,10 +28,10 @@ Grab an installer from the
 
 | File | .NET | Use it when |
 | ---- | ---- | ----------- |
-| `EasyFbSoft-<version>-x64-setup.exe` | included | **Start here.** Normal desktop install. |
-| `EasyFbSoft-<version>-x64.msi` | included | Group Policy, Intune, or a scripted rollout. |
-| `EasyFbSoft-<version>-x64-framework-setup.exe` | fetched | Much smaller download; Setup installs the runtime if the machine lacks it. |
-| `EasyFbSoft-<version>-x64-framework.msi` | required | Scripted rollout where the runtime is managed separately. |
+| `ByteBridge-<version>-x64-setup.exe` | included | **Start here.** Normal desktop install. |
+| `ByteBridge-<version>-x64.msi` | included | Group Policy, Intune, or a scripted rollout. |
+| `ByteBridge-<version>-x64-framework-setup.exe` | fetched | Much smaller download; Setup installs the runtime if the machine lacks it. |
+| `ByteBridge-<version>-x64-framework.msi` | required | Scripted rollout where the runtime is managed separately. |
 
 The `-framework` builds need the
 [.NET 10 Desktop Runtime (x64)](https://dotnet.microsoft.com/download/dotnet/10.0);
@@ -49,7 +49,7 @@ and ask for administrator rights once.
 
 ## It runs as a service
 
-The gateway is a Windows service, `EasyFbSoft`, installed and started
+The gateway is a Windows service, `ByteBridge`, installed and started
 for you. It starts with the machine and serves with nobody signed in,
 so an unattended server is a supported target and closing the window
 does not take the gateway down with it.
@@ -62,7 +62,7 @@ gateway could not bind is exactly what is behind a `502`, so it is
 named rather than reported as healthy.
 
 It asks for administrator rights, because
-`C:\ProgramData\EasyFbSoft` holds your Firebird passwords in the clear
+`C:\ProgramData\ByteBridge` holds your Firebird passwords in the clear
 beside the API key, and that key is all that stands between the public
 internet and those databases. The folder is restricted to
 Administrators and the service account, so no other account on the
@@ -74,15 +74,15 @@ Server Core has no desktop, so the control panel cannot run there. The
 service executable doubles as an admin tool:
 
 ```
-EasyFbSoft.Service.exe status
-EasyFbSoft.Service.exe db add --name Sales --server 127.0.0.1 ^
+ByteBridge.Service.exe status
+ByteBridge.Service.exe db add --name Sales --server 127.0.0.1 ^
     --path C:\data\sales.fdb --user SYSDBA --password secret
-EasyFbSoft.Service.exe key show
-EasyFbSoft.Service.exe port 8080
+ByteBridge.Service.exe key show
+ByteBridge.Service.exe port 8080
 ```
 
 Changes apply within a few seconds; the service does not need
-restarting. Run `EasyFbSoft.Service.exe --help` for the full list. On a
+restarting. Run `ByteBridge.Service.exe --help` for the full list. On a
 machine with a desktop you never need any of this.
 
 ## Quick start
@@ -109,7 +109,7 @@ machine with a desktop you never need any of this.
    ```
 
    ```json
-   { "status": "ok", "service": "EasyFbSoft", "connections": 1, "online": 1, ... }
+   { "status": "ok", "service": "ByteBridge", "connections": 1, "online": 1, ... }
    ```
 
 6. **Query.**
@@ -158,11 +158,11 @@ API key as a database credential.
   Cloudflare's edge before a request reaches the machine at all.
   [GATEWAY.md](GATEWAY.md#locking-the-tunnel-to-just-you) has the setup.
 - Every request, served or rejected, is appended to
-  `C:\ProgramData\EasyFbSoft\logs\`. Bound parameter values are never
+  `C:\ProgramData\ByteBridge\logs\`. Bound parameter values are never
   written; the statement is.
 
 Connections are stored in
-`C:\ProgramData\EasyFbSoft\easyfbsoft.db`. Firebird passwords are kept
+`C:\ProgramData\ByteBridge\bytebridge.db`. Firebird passwords are kept
 there in plain text, so that file deserves the same care as the
 credentials themselves.
 
@@ -171,8 +171,8 @@ credentials themselves.
 Needs the .NET 10 SDK and Windows.
 
 ```
-dotnet build EasyFbSoft.slnx
-dotnet run --project EasyFbSoft.csproj
+dotnet build ByteBridge.slnx
+dotnet run --project ByteBridge.csproj
 ```
 
 To produce the installers the way the release does, see
@@ -205,7 +205,7 @@ connections of whoever is running it.
 so a fresh clone still gets a green run:
 
 ```powershell
-$env:EASYFBSOFT_TEST_FIREBIRD = "127.0.0.1:3050:SYSDBA:masterkey:C:\db\test.fdb"
+$env:BYTEBRIDGE_TEST_FIREBIRD = "127.0.0.1:3050:SYSDBA:masterkey:C:\db\test.fdb"
 dotnet test tests/EasyFbSoft.Tests
 ```
 
@@ -268,7 +268,7 @@ files as workflow artifacts — no tag, no release.
 
 ## Support the project
 
-Easy FB Soft is free and stays free. If it is useful to you, you can
+ByteBridge is free and stays free. If it is useful to you, you can
 support the work that keeps it going: maintenance, testing against real
 Firebird servers, documentation, and the next round of improvements. It
 is entirely optional, and nothing in the app is held back from people

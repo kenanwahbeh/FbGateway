@@ -31,7 +31,7 @@ public enum ServiceState
  */
 public sealed class GatewayServiceControl : IDisposable
 {
-    public const string ServiceName = "EasyFbSoft";
+    public const string ServiceName = "ByteBridge";
 
     /*
      * Long enough for a service that has to open a database and bind a

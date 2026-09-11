@@ -9,6 +9,7 @@ using FirebirdSql.Data.FirebirdClient;
 using FbGateway.Configuration;
 using FbGateway.Data;
 using FbGateway.Gateway;
+using FbGateway.Localization;
 
 namespace FbGateway;
 
@@ -31,11 +32,22 @@ public partial class MainWindow : Window
 
     private List<DatabaseConfig> _connections = new();
 
+    private bool _isClosing = false;
+
     public MainWindow()
     {
         InitializeComponent();
 
         _database = new SqliteDatabase();
+
+        // Load saved language
+        var savedLanguage = _database.GetSetting("App.Language");
+        if (!string.IsNullOrEmpty(savedLanguage))
+        {
+            Strings.SetLanguage(savedLanguage);
+        }
+
+        ApplyLocalization();
 
         GatewayPortTextBox.Text =
             _database.GetGatewayConfig().Port.ToString();
@@ -43,6 +55,8 @@ public partial class MainWindow : Window
         _refresh.Tick += async (_, _) => await UpdateGatewayUi();
 
         LoadConnections();
+
+        LoadOAuthConfig();
 
         _ = UpdateGatewayUi();
 
@@ -62,6 +76,56 @@ public partial class MainWindow : Window
         await UpdateGatewayUi();
     }
 
+    private void Window_Closing(
+        object sender,
+        System.ComponentModel.CancelEventArgs e)
+    {
+        if (_isClosing)
+        {
+            return;
+        }
+
+        // Show the close dialog
+        var dialog = new CloseDialogWindow
+        {
+            Owner = this
+        };
+
+        if (dialog.ShowDialog() != true)
+        {
+            // User cancelled
+            e.Cancel = true;
+            return;
+        }
+
+        switch (dialog.Result)
+        {
+            case CloseDialogResult.MinimizeToTray:
+                // Minimize to tray instead of closing
+                e.Cancel = true;
+                WindowState = WindowState.Minimized;
+                ShowInTaskbar = false;
+                break;
+
+            case CloseDialogResult.Settings:
+                // Open settings window
+                e.Cancel = true;
+                OpenSettings();
+                break;
+
+            case CloseDialogResult.Exit:
+                // Actually close
+                _isClosing = true;
+                _refresh.Stop();
+                _service.Dispose();
+                break;
+
+            case CloseDialogResult.Cancel:
+                e.Cancel = true;
+                break;
+        }
+    }
+
     private void Window_Closed(
         object sender,
         EventArgs e)
@@ -74,6 +138,26 @@ public partial class MainWindow : Window
         _refresh.Stop();
 
         _service.Dispose();
+    }
+
+    private void OpenSettings()
+    {
+        var settingsWindow = new SettingsWindow(
+            _database,
+            () =>
+            {
+                ApplyLocalization();
+                LoadConnections();
+                LoadOAuthConfig();
+            })
+        {
+            Owner = this
+        };
+
+        settingsWindow.ShowDialog();
+
+        // Refresh UI after settings change
+        _ = UpdateGatewayUi();
     }
 
     /*
@@ -107,7 +191,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 "Please enter a valid port between 1 and 65535.",
-                "Easy FB Soft",
+                "ByteBridge",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
 
@@ -133,7 +217,7 @@ public partial class MainWindow : Window
         catch (Exception ex)
         {
             MessageBox.Show(
-                "The Easy FB Soft service could not be started.\n\n"
+                "The ByteBridge service could not be started.\n\n"
                 + ex.Message,
                 "Service",
                 MessageBoxButton.OK,
@@ -155,7 +239,7 @@ public partial class MainWindow : Window
                 "API key copied.\n\n" +
                 "Send it on every request as the X-API-Key header.",
 
-                "Easy FB Soft",
+                "ByteBridge",
 
                 MessageBoxButton.OK,
 
@@ -166,7 +250,7 @@ public partial class MainWindow : Window
             MessageBox.Show(
                 $"The key could not be copied.\n\n{ex.Message}",
 
-                "Easy FB Soft",
+                "ByteBridge",
 
                 MessageBoxButton.OK,
 
@@ -206,7 +290,7 @@ public partial class MainWindow : Window
             "A new API key was generated.\n\n" +
             "Use Copy API Key to put it on the clipboard.",
 
-            "Easy FB Soft",
+            "ByteBridge",
 
             MessageBoxButton.OK,
 
@@ -253,7 +337,7 @@ public partial class MainWindow : Window
             ServiceState.Running => "Service: running",
             ServiceState.Stopped => "Service: stopped",
             ServiceState.Pending => "Service: starting or stopping",
-            _ => "Service: not installed — reinstall Easy FB Soft to add it"
+            _ => "Service: not installed — reinstall ByteBridge to add it"
         };
     }
 
@@ -298,7 +382,7 @@ public partial class MainWindow : Window
                 $"The service is running but nothing answers on {config.BaseUrl}. "
                 + "Give it a few seconds; if it stays this way the port is in use "
                 + "or the reservation was refused. See Event Viewer, Application, "
-                + "source Easy FB Soft.";
+                 + "source ByteBridge.";
         }
         else
         {
@@ -550,7 +634,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 ex.Message,
-                "Easy FB Soft",
+                "ByteBridge",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
         }
@@ -582,7 +666,7 @@ public partial class MainWindow : Window
         {
             MessageBox.Show(
                 ex.Message,
-                "Easy FB Soft",
+                "ByteBridge",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
         }
@@ -624,7 +708,7 @@ public partial class MainWindow : Window
             var confirm =
                 MessageBox.Show(
                     $"Turn \"{connection.Name}\" online?\n\n" +
-                    "Easy FB Soft will test the database connection first.",
+                    "ByteBridge will test the database connection first.",
 
                     "Turn Online",
 
@@ -755,6 +839,128 @@ public partial class MainWindow : Window
         object sender,
         RoutedEventArgs e)
     {
+        // Trigger the closing event which shows the close dialog
         Close();
+    }
+
+    /*
+     * OAuth configuration and event handlers.
+     */
+
+    private void LoadOAuthConfig()
+    {
+        var config = _database.GetGatewayConfig();
+        var oauthConfig = _database.GetOAuthConfig();
+
+        OAuthBorder.Visibility = Visibility.Visible;
+
+        TeamDomainTextBox.Text = oauthConfig.TeamDomain;
+        AudienceTextBox.Text = oauthConfig.Audience;
+
+        if (oauthConfig.Enabled)
+        {
+            OAuthStatusTextBlock.Text = "Enabled";
+            OAuthStatusTextBlock.Foreground = Brushes.Green;
+            OAuthToggleButton.Content = "Disable";
+            TeamDomainTextBox.IsEnabled = false;
+            AudienceTextBox.IsEnabled = false;
+        }
+        else
+        {
+            OAuthStatusTextBlock.Text = "Not configured";
+            OAuthStatusTextBlock.Foreground = Brushes.Gray;
+            OAuthToggleButton.Content = "Enable";
+            TeamDomainTextBox.IsEnabled = true;
+            AudienceTextBox.IsEnabled = true;
+        }
+    }
+
+    private void OAuthToggleButton_Click(
+        object sender,
+        RoutedEventArgs e)
+    {
+        var config = _database.GetOAuthConfig();
+
+        if (config.Enabled)
+        {
+            // Disable OAuth
+            config.Enabled = false;
+            _database.SaveOAuthConfig(config);
+
+            MessageBox.Show(
+                Strings.Get("OAuthDisabled"),
+                Strings.Get("AppTitle"),
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        else
+        {
+            // Enable OAuth
+            var teamDomain = TeamDomainTextBox.Text.Trim();
+            var audience = AudienceTextBox.Text.Trim();
+
+            if (string.IsNullOrEmpty(teamDomain))
+            {
+                MessageBox.Show(
+                    Strings.Get("OAuthTeamDomainRequired"),
+                    Strings.Get("AppTitle"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+
+                return;
+            }
+
+            if (string.IsNullOrEmpty(audience))
+            {
+                MessageBox.Show(
+                    Strings.Get("OAuthAudienceRequired"),
+                    Strings.Get("AppTitle"),
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+
+                return;
+            }
+
+            config.Enabled = true;
+            config.TeamDomain = teamDomain;
+            config.Audience = audience;
+            config.JwksUri =
+                $"https://{teamDomain}/cdn-cgi/access/certs";
+
+            _database.SaveOAuthConfig(config);
+
+            MessageBox.Show(
+                Strings.Get("OAuthEnabled"),
+                Strings.Get("AppTitle"),
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+
+        LoadOAuthConfig();
+    }
+
+    /*
+     * Applies localized strings to all UI elements.
+     */
+    private void ApplyLocalization()
+    {
+        Title = Strings.Get("AppTitle");
+        AddDataButton.Content = Strings.Get("AddData");
+        DoneButton.Content = Strings.Get("Done");
+
+        // Gateway
+        GatewayApiTextBlock.Text = Strings.Get("GatewayApi");
+        PortTextBlock.Text = Strings.Get("Port");
+        CopyKeyButton.Content = Strings.Get("CopyApiKey");
+        RegenerateKeyButton.Content = Strings.Get("NewKey");
+        StartServiceButton.Content = Strings.Get("StartService");
+
+        // OAuth
+        CloudflareLoginTextBlock.Text = Strings.Get("CloudflareLogin");
+        TeamDomainTextBlock.Text = Strings.Get("TeamDomain");
+        AudienceTextBlock.Text = Strings.Get("Audience");
+
+        // Refresh dynamic text
+        _ = UpdateGatewayUi();
     }
 }

@@ -21,12 +21,12 @@
     behind the rename.
   -->
   <PropertyGroup>
-    <AssemblyName>EasyFbSoft</AssemblyName>
+    <AssemblyName>ByteBridge</AssemblyName>
     <RootNamespace>FbGateway</RootNamespace>
-    <Product>Easy FB Soft</Product>
-    <Company>Easy FB Soft</Company>
+    <Product>ByteBridge</Product>
+    <Company>ByteBridge</Company>
     <Description>HTTP gateway for Firebird databases</Description>
-    <Copyright>Copyright © Easy FB Soft</Copyright>
+    <Copyright>Copyright © ByteBridge</Copyright>
     <Version>1.0.0</Version>
     <ApplicationIcon>installer/EasyFbSoft.ico</ApplicationIcon>
     <ApplicationManifest>app.manifest</ApplicationManifest>

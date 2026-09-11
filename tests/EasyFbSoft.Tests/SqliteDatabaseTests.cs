@@ -273,6 +273,19 @@ public class SqliteDatabaseTests
         File.Move(root.CurrentDatabasePath, root.LegacyDatabasePath);
     }
 
+    private static void SeedPreviousFile(TempDataRoot root, DatabaseConfig connection)
+    {
+        // Same as above, but for the EasyFbSoft name the app shipped
+        // under before it became ByteBridge.
+        var seeded = root.OpenDatabase();
+        seeded.AddConnection(connection);
+
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+
+        Directory.CreateDirectory(Path.GetDirectoryName(root.PreviousDatabasePath)!);
+        File.Move(root.CurrentDatabasePath, root.PreviousDatabasePath);
+    }
+
     [Fact]
     public void A_legacy_settings_file_is_carried_over()
     {
@@ -284,6 +297,20 @@ public class SqliteDatabaseTests
 
         Assert.Equal("Legacy Sales", migrated.Name);
         Assert.Equal("secret", migrated.Password);
+    }
+
+    [Fact]
+    public void A_previous_name_settings_file_is_carried_over()
+    {
+        using var root = new TempDataRoot();
+
+        SeedPreviousFile(root, Sample(name: "Previous Sales"));
+
+        var migrated = Assert.Single(root.OpenDatabase().GetConnections());
+
+        Assert.Equal("Previous Sales", migrated.Name);
+        Assert.Equal("secret", migrated.Password);
+        Assert.True(File.Exists(root.PreviousDatabasePath));
     }
 
     [Fact]

@@ -79,15 +79,31 @@ public sealed class GatewayServer : IDisposable
 
     private volatile GatewayConfig _config;
 
+    private volatile OAuthConfig _oauthConfig;
+
     private readonly RequestLog _log;
 
-    public GatewayServer(SqliteDatabase database, RequestLog? log = null)
+    private readonly CloudflareAccessValidator? _oauthValidator;
+
+    private readonly OAuthSessionManager? _sessionManager;
+
+    public GatewayServer(
+        SqliteDatabase database,
+        RequestLog? log = null,
+        CloudflareAccessValidator? oauthValidator = null,
+        OAuthSessionManager? sessionManager = null)
     {
         _database = database;
 
         _config = database.GetGatewayConfig();
 
+        _oauthConfig = database.GetOAuthConfig();
+
         _log = log ?? new RequestLog(database.LogDirectory);
+
+        _oauthValidator = oauthValidator;
+
+        _sessionManager = sessionManager;
     }
 
     /*
@@ -213,7 +229,7 @@ public sealed class GatewayServer : IDisposable
         {
             5 =>
                 $"Windows refused to reserve {config.Prefix}\n\n" +
-                "Either run Easy FB Soft as administrator once, or grant the " +
+                "Either run ByteBridge as administrator once, or grant the " +
                 "reservation from an elevated prompt:\n\n" +
                 $"netsh http add urlacl url={config.Prefix} user=\"%USERNAME%\"",
 
@@ -339,6 +355,15 @@ public sealed class GatewayServer : IDisposable
                 await DrainOrCloseAsync(context);
 
                 await WriteHealthAsync(context);
+                return;
+            }
+
+            /*
+             * /auth/* endpoints handle OAuth login/logout.
+             */
+            if (path.StartsWith("/auth/", StringComparison.OrdinalIgnoreCase))
+            {
+                await HandleAuthAsync(context, path, cancellationToken);
                 return;
             }
 
@@ -675,7 +700,7 @@ public sealed class GatewayServer : IDisposable
                 409,
                 new ErrorResponse(
                     $"Connection \"{connection.Name}\" is offline. " +
-                    "Turn it online in Easy FB Soft first."));
+                    "Turn it online in ByteBridge first."));
 
             return null;
         }
@@ -725,7 +750,7 @@ public sealed class GatewayServer : IDisposable
             new
             {
                 Status = "ok",
-                Service = "EasyFbSoft",
+                Service = "ByteBridge",
                 Connections = connections.Count,
                 Online = online,
                 TimeUtc = DateTime.UtcNow
@@ -787,6 +812,30 @@ public sealed class GatewayServer : IDisposable
 
     private bool IsAuthorized(HttpListenerRequest request)
     {
+        // Check session cookie first
+        if (_sessionManager != null &&
+            _sessionManager.Enabled)
+        {
+            var cookieHeader =
+                request.Headers["Cookie"];
+
+            var token =
+                OAuthSessionManager.ExtractTokenFromCookie(
+                    cookieHeader);
+
+            if (token != null)
+            {
+                var user =
+                    _sessionManager.ValidateSession(token);
+
+                if (user != null)
+                {
+                    return true;
+                }
+            }
+        }
+
+        // Fall back to API key
         var expected = _config.ApiKey;
 
         if (string.IsNullOrEmpty(expected))
@@ -819,6 +868,327 @@ public sealed class GatewayServer : IDisposable
         return CryptographicOperations.FixedTimeEquals(
             Encoding.UTF8.GetBytes(provided),
             Encoding.UTF8.GetBytes(expected));
+    }
+
+    /*
+     * Handles OAuth authentication endpoints.
+     *
+     * /auth/login   - Redirects to Cloudflare Access login
+     * /auth/callback - Handles the OAuth callback
+     * /auth/logout  - Clears the session
+     * /auth/me      - Returns the current user info
+     */
+    private async Task HandleAuthAsync(
+        HttpListenerContext context,
+        string path,
+        CancellationToken cancellationToken)
+    {
+        var method = context.Request.HttpMethod;
+
+        switch (path)
+        {
+            case "/auth/login":
+                await HandleLoginAsync(context, cancellationToken);
+                return;
+
+            case "/auth/callback":
+                await HandleCallbackAsync(context, cancellationToken);
+                return;
+
+            case "/auth/logout":
+                await HandleLogoutAsync(context);
+                return;
+
+            case "/auth/me":
+                await HandleMeAsync(context);
+                return;
+
+            default:
+                await DrainOrCloseAsync(context);
+                await WriteJsonAsync(
+                    context,
+                    404,
+                    new ErrorResponse("Unknown auth endpoint."));
+                return;
+        }
+    }
+
+    /*
+     * Redirects the user to Cloudflare Access login page.
+     *
+     * The user authenticates via their configured identity
+     * provider (GitHub, Google, One-time PIN, etc.) and
+     * Cloudflare redirects back to /auth/callback with a
+     * JWT token.
+     */
+    private async Task HandleLoginAsync(
+        HttpListenerContext context,
+        CancellationToken cancellationToken)
+    {
+        if (_sessionManager == null || !_sessionManager.Enabled)
+        {
+            await WriteJsonAsync(
+                context,
+                400,
+                new ErrorResponse(
+                    "OAuth login is not configured."));
+            return;
+        }
+
+        /*
+         * Build the Cloudflare Access authorization URL.
+         *
+         * The flow is:
+         * 1. Redirect to Cloudflare Access
+         * 2. User authenticates with their IdP
+         * 3. Cloudflare redirects back with a JWT in the
+         *    cf_clearance cookie or as a query parameter
+         */
+        var redirectUri = _oauthConfig.RedirectUri;
+        var teamDomain = _oauthConfig.TeamDomain;
+
+        if (string.IsNullOrEmpty(redirectUri))
+        {
+            redirectUri =
+                $"{_config.BaseUrl}/auth/callback";
+        }
+
+        var state = Convert
+            .ToHexString(
+                System.Security.Cryptography
+                    .RandomNumberGenerator.GetBytes(16))
+            .ToLowerInvariant();
+
+        var loginUrl =
+            $"https://{teamDomain}/cdn-cgi/access/callback" +
+            $"?redirect_uri={Uri.EscapeDataString(redirectUri)}" +
+            $"&state={state}";
+
+        context.Response.StatusCode = 302;
+        context.Response.RedirectLocation = loginUrl;
+    }
+
+    /*
+     * Handles the OAuth callback from Cloudflare Access.
+     *
+     * After the user authenticates, Cloudflare redirects to
+     * this endpoint with a JWT token. The gateway validates
+     * the token and creates a session.
+     */
+    private async Task HandleCallbackAsync(
+        HttpListenerContext context,
+        CancellationToken cancellationToken)
+    {
+        if (_sessionManager == null || !_sessionManager.Enabled)
+        {
+            await WriteJsonAsync(
+                context,
+                400,
+                new ErrorResponse(
+                    "OAuth login is not configured."));
+            return;
+        }
+
+        if (_oauthValidator == null)
+        {
+            await WriteJsonAsync(
+                context,
+                500,
+                new ErrorResponse(
+                    "OAuth validator is not configured."));
+            return;
+        }
+
+        /*
+         * Cloudflare Access sends the JWT as a query parameter
+         * named "cf_clearance_jwt" or in the Authorization
+         * header.
+         */
+        var token = context.Request.QueryString["cf_clearance_jwt"]
+            ?? context.Request.Headers["Authorization"];
+
+        if (string.IsNullOrEmpty(token))
+        {
+            await WriteJsonAsync(
+                context,
+                400,
+                new ErrorResponse(
+                    "Missing authentication token."));
+            return;
+        }
+
+        // Strip "Bearer " prefix if present
+        if (token.StartsWith(
+                "Bearer ",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            token = token["Bearer ".Length..].Trim();
+        }
+
+        // Validate the JWT
+        var principal =
+            await _oauthValidator.ValidateTokenAsync(token);
+
+        if (principal == null)
+        {
+            await WriteJsonAsync(
+                context,
+                401,
+                new ErrorResponse(
+                    "Invalid or expired authentication token."));
+            return;
+        }
+
+        // Extract user email
+        var email =
+            CloudflareAccessValidator.GetEmail(principal);
+
+        if (string.IsNullOrEmpty(email))
+        {
+            await WriteJsonAsync(
+                context,
+                401,
+                new ErrorResponse(
+                    "Could not determine user identity."));
+            return;
+        }
+
+        // Create a session
+        var sessionToken =
+            _sessionManager.CreateSession(email);
+
+        // Set the session cookie and redirect to root
+        var cookie = OAuthSessionManager.FormatCookie(
+            sessionToken,
+            _sessionManager.Enabled
+                ? _oauthConfig.SessionTimeoutMinutes
+                : 60);
+
+        context.Response.Headers["Set-Cookie"] = cookie;
+        context.Response.StatusCode = 302;
+        context.Response.RedirectLocation = "/";
+    }
+
+    /*
+     * Clears the session cookie (logout).
+     */
+    private async Task HandleLogoutAsync(
+        HttpListenerContext context)
+    {
+        if (_sessionManager != null)
+        {
+            var cookieHeader =
+                context.Request.Headers["Cookie"];
+
+            var token =
+                OAuthSessionManager.ExtractTokenFromCookie(
+                    cookieHeader);
+
+            if (token != null)
+            {
+                _sessionManager.RevokeSession(token);
+            }
+        }
+
+        var clearCookie = OAuthSessionManager.ClearCookie();
+        context.Response.Headers["Set-Cookie"] = clearCookie;
+
+        context.Response.StatusCode = 302;
+        context.Response.RedirectLocation = "/";
+    }
+
+    /*
+     * Returns the current authenticated user's email.
+     */
+    private async Task HandleMeAsync(
+        HttpListenerContext context)
+    {
+        var email = GetAuthenticatedUser(context.Request);
+
+        if (string.IsNullOrEmpty(email))
+        {
+            await WriteJsonAsync(
+                context,
+                401,
+                new ErrorResponse(
+                    "Not authenticated."));
+            return;
+        }
+
+        await WriteJsonAsync(
+            context,
+            200,
+            new { Email = email });
+    }
+
+    /*
+     * Gets the authenticated user's email from either the
+     * API key or the session cookie.
+     */
+    private string? GetAuthenticatedUser(
+        HttpListenerRequest request)
+    {
+        // Check session cookie first
+        if (_sessionManager != null &&
+            _sessionManager.Enabled)
+        {
+            var cookieHeader =
+                request.Headers["Cookie"];
+
+            var token =
+                OAuthSessionManager.ExtractTokenFromCookie(
+                    cookieHeader);
+
+            if (token != null)
+            {
+                var email =
+                    _sessionManager.ValidateSession(token);
+
+                if (email != null)
+                {
+                    return email;
+                }
+            }
+        }
+
+        // Fall back to API key
+        var expected = _config.ApiKey;
+
+        if (string.IsNullOrEmpty(expected))
+        {
+            return null;
+        }
+
+        var provided = request.Headers["X-API-Key"];
+
+        if (string.IsNullOrEmpty(provided))
+        {
+            var authorization =
+                request.Headers["Authorization"];
+
+            if (!string.IsNullOrEmpty(authorization) &&
+                authorization.StartsWith(
+                    "Bearer ",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                provided =
+                    authorization["Bearer ".Length..].Trim();
+            }
+        }
+
+        if (string.IsNullOrEmpty(provided))
+        {
+            return null;
+        }
+
+        if (CryptographicOperations.FixedTimeEquals(
+                Encoding.UTF8.GetBytes(provided),
+                Encoding.UTF8.GetBytes(expected)))
+        {
+            return "api-key";
+        }
+
+        return null;
     }
 
     private static string NormalizePath(Uri? url)

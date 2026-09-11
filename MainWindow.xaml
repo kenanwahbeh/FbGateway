@@ -1,13 +1,14 @@
 <Window x:Class="FbGateway.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Easy FB Soft"
+        Title="ByteBridge"
         Width="900"
         Height="700"
         MinWidth="720"
         MinHeight="520"
         WindowStartupLocation="CenterScreen"
         Loaded="Window_Loaded"
+        Closing="Window_Closing"
         Closed="Window_Closed">
 
     <Grid Margin="24">
@@ -22,11 +23,13 @@
         <!-- Header -->
         <Grid Grid.Row="0">
 
-            <TextBlock Text="Easy FB Soft"
+            <TextBlock x:Name="AppTitleTextBlock"
+                       Text="ByteBridge"
                        FontSize="28"
                        FontWeight="Bold"/>
 
-            <Button Content="+ Add Data"
+            <Button x:Name="AddDataButton"
+                    Content="+ Add Data"
                     HorizontalAlignment="Right"
                     Padding="18,9"
                     Click="AddButton_Click"/>
@@ -51,7 +54,8 @@
                 <StackPanel Grid.Column="0"
                             VerticalAlignment="Center">
 
-                    <TextBlock Text="Gateway API"
+                    <TextBlock x:Name="GatewayApiTextBlock"
+                               Text="Gateway API"
                                FontSize="16"
                                FontWeight="SemiBold"/>
 
@@ -76,7 +80,8 @@
                             Orientation="Horizontal"
                             VerticalAlignment="Center">
 
-                    <TextBlock Text="Port"
+                    <TextBlock x:Name="PortTextBlock"
+                               Text="Port"
                                FontSize="13"
                                VerticalAlignment="Center"
                                Margin="0,0,8,0"/>
@@ -117,6 +122,84 @@
 
         </Border>
 
+        <!-- Cloudflare OAuth -->
+        <Border Grid.Row="2"
+                Margin="0,22,0,0"
+                Padding="16"
+                CornerRadius="8"
+                BorderThickness="1"
+                BorderBrush="#DCDCDC"
+                x:Name="OAuthBorder"
+                Visibility="Collapsed">
+
+            <Grid>
+
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*"/>
+                    <ColumnDefinition Width="Auto"/>
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0"
+                            VerticalAlignment="Center">
+
+                    <TextBlock x:Name="CloudflareLoginTextBlock"
+                               Text="Cloudflare Login"
+                               FontSize="16"
+                               FontWeight="SemiBold"/>
+
+                    <TextBlock x:Name="OAuthStatusTextBlock"
+                               Margin="0,6,0,0"
+                               FontSize="14"
+                               Text="Not configured"/>
+
+                    <TextBlock x:Name="OAuthUserTextBlock"
+                               Margin="0,4,0,0"
+                               FontSize="12"
+                               Foreground="Gray"
+                               Visibility="Collapsed"/>
+
+                </StackPanel>
+
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            VerticalAlignment="Center">
+
+                    <TextBlock x:Name="TeamDomainTextBlock"
+                               Text="Team Domain"
+                               FontSize="13"
+                               VerticalAlignment="Center"
+                               Margin="0,0,8,0"/>
+
+                    <TextBox x:Name="TeamDomainTextBox"
+                             Width="200"
+                             Padding="8,7"
+                             VerticalAlignment="Center"
+                             ToolTip="your-team.cloudflareaccess.com"/>
+
+                    <TextBlock x:Name="AudienceTextBlock"
+                               Text="Audience"
+                               FontSize="13"
+                               VerticalAlignment="Center"
+                               Margin="10,0,8,0"/>
+
+                    <TextBox x:Name="AudienceTextBox"
+                             Width="150"
+                             Padding="8,7"
+                             VerticalAlignment="Center"
+                             ToolTip="Access application audience tag"/>
+
+                    <Button x:Name="OAuthToggleButton"
+                            Content="Enable"
+                            Padding="18,7"
+                            Margin="10,0,0,0"
+                            Click="OAuthToggleButton_Click"/>
+
+                </StackPanel>
+
+            </Grid>
+
+        </Border>
+
         <!-- Connections -->
         <ScrollViewer Grid.Row="2"
                       Margin="0,22,0,20"
@@ -132,7 +215,8 @@
                     Orientation="Horizontal"
                     HorizontalAlignment="Right">
 
-            <Button Content="Done"
+            <Button x:Name="DoneButton"
+                    Content="Done"
                     Padding="25,9"
                     Click="DoneButton_Click"/>
 

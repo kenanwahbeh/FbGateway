@@ -17,12 +17,14 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>FbGateway</RootNamespace>
-    <AssemblyName>EasyFbSoft.Core</AssemblyName>
+    <AssemblyName>ByteBridge.Core</AssemblyName>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="FirebirdSql.Data.FirebirdClient" Version="10.3.4" />
     <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.11" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.0.1" />
+    <PackageReference Include="Microsoft.IdentityModel.Protocols.OpenIdConnect" Version="8.0.1" />
   </ItemGroup>
 
   <!--

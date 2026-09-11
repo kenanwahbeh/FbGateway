@@ -58,7 +58,7 @@ public sealed class GatewayWorker : BackgroundService
         CancellationToken stoppingToken)
     {
         _logger.LogInformation(
-            "Easy FB Soft gateway service starting.");
+            "ByteBridge gateway service starting.");
 
         while (!stoppingToken.IsCancellationRequested)
         {
@@ -94,7 +94,7 @@ public sealed class GatewayWorker : BackgroundService
         }
 
         _logger.LogInformation(
-            "Easy FB Soft gateway service stopped.");
+            "ByteBridge gateway service stopped.");
     }
 
     /*

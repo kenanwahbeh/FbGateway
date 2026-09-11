@@ -9,10 +9,10 @@ name: CI
 # in a service container. The test project targets plain net10.0, not
 # net10.0-windows, so it runs there unchanged.
 #
-# To run them on your own machine, point EASYFBSOFT_TEST_FIREBIRD at a
+# To run them on your own machine, point BYTEBRIDGE_TEST_FIREBIRD at a
 # server:
 #
-#   $env:EASYFBSOFT_TEST_FIREBIRD = "127.0.0.1:3050:SYSDBA:masterkey:C:\db\test.fdb"
+#   $env:BYTEBRIDGE_TEST_FIREBIRD = "127.0.0.1:3050:SYSDBA:masterkey:C:\db\test.fdb"
 #   dotnet test tests/EasyFbSoft.Tests
 #
 # Packaging is not built here; it takes minutes to compress. Run the
@@ -110,7 +110,7 @@ jobs:
       # Only the test project: the WPF app cannot build on Linux.
       - name: Test
         env:
-          EASYFBSOFT_TEST_FIREBIRD: 127.0.0.1:3050:SYSDBA:masterkey:/var/lib/firebird/data/test.fdb
+          BYTEBRIDGE_TEST_FIREBIRD: 127.0.0.1:3050:SYSDBA:masterkey:/var/lib/firebird/data/test.fdb
         run: >
           dotnet test tests/EasyFbSoft.Tests/EasyFbSoft.Tests.csproj
           -c Release
