@@ -4,7 +4,7 @@ Easy FB Soft exposes the configured Firebird connections over a small
 JSON API on loopback, so a Cloudflare Tunnel running on the same
 machine has something to forward requests to.
 
-The listener starts with the app. Its status, port and API key are
+The listener starts with the machine. Its status, port and API key are
 shown in the **Gateway API** panel of the control panel window.
 The gateway itself runs as the `EasyFbSoft` Windows service, so it is
 up whether or not that window is open.
@@ -31,8 +31,9 @@ X-API-Key: <key>
 ```
 
 `Authorization: Bearer <key>` is accepted as well. Copy the key from
-the **Copy API Key** button; **New Key** rotates it and takes effect
-immediately, without restarting the gateway.
+the **Copy API Key** button. **New Key** rotates it without restarting
+the gateway: the running gateway picks the new key up within a few
+seconds, and refuses the old one from then on.
 
 `/health` is deliberately open so the tunnel can be verified before
 any key is involved. It returns no data from any database.
@@ -108,14 +109,16 @@ curl -X POST https://your-tunnel.example.com/execute \
 
 ## Status codes
 
-| Code | Meaning                                                      |
-| ---- | ------------------------------------------------------------ |
-| 400  | Bad request body, a write sent to `/query`, or invalid SQL.  |
-| 401  | Missing or wrong API key.                                    |
-| 404  | Unknown endpoint, or no connection matches `database`.       |
-| 405  | Wrong HTTP method for the endpoint.                          |
-| 409  | The connection exists but is **Offline** in the app.         |
-| 500  | Unexpected server error.                                     |
+| Code | Meaning                                                           |
+| ---- | ----------------------------------------------------------------- |
+| 400  | Bad request body, a write sent to `/query`, or invalid SQL.       |
+| 400  | `database` names more than one connection; send its `id` instead. |
+| 401  | Missing or wrong API key.                                         |
+| 404  | Unknown endpoint, or no connection matches `database`.            |
+| 405  | Wrong HTTP method for the endpoint.                               |
+| 409  | The connection exists but is **Offline** in the app.              |
+| 413  | Request body over the 1 MB limit.                                 |
+| 500  | Unexpected server error.                                          |
 
 Errors are `{ "error": "..." }`.
 

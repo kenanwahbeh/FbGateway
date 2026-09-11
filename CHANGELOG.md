@@ -13,6 +13,60 @@ file is the single source of truth for what shipped.
 
 ## [Unreleased]
 
+### Security
+
+- **The settings folder is locked down by whatever creates it.** The
+  folder holding the API key and the Firebird passwords was restricted
+  to SYSTEM and Administrators only when the service started. The
+  control panel and the command line can each be the first to create
+  it, and both write a key into it straight away, so until the service
+  next ran -- or for good, where it never did -- that file kept
+  `C:\ProgramData`'s permissions and was readable by every account on
+  the machine.
+- **The listener can no longer be pointed off loopback.** A stored
+  `Gateway.Host` that was not a loopback address was bound as it was,
+  and the service reserves whatever address it is refused, so a value
+  such as `+` or `0.0.0.0` put the gateway on every network interface.
+  Anything other than a `127.x.x.x` address or `localhost` is now
+  ignored in favour of `127.0.0.1`, the service only ever reserves a
+  loopback address, and `netsh` receives its arguments separately so
+  nothing inside one can become another.
+
+### Fixed
+
+- **A request can no longer reach the wrong database by name.** Two
+  connections could share a name, and a request naming it went to
+  whichever sorted first -- a write included. Names now have to be
+  unique. A name two connections already share, in a settings file from
+  before, is answered with `400` and a pointer to their ids rather than
+  a guess, and the command line refuses it the same way.
+- **The gateway keeps accepting requests after a failed accept.** An
+  error while waiting for the next request ended the accept loop for
+  good while the service still believed the gateway was up, so every
+  later request hung. Only a real stop ends it now.
+- **Saving a setting no longer undoes a key rotation.** Changing the
+  port or the on/off switch wrote back the API key read a moment
+  earlier, so a key rotated in between was quietly restored. The
+  settings are now written in one transaction as well.
+- **An upload cut off part-way is a `400`,** not a `500` recorded
+  against the gateway.
+- **`GET /health` and `GET /databases` sent with a body** no longer
+  leave it in the keep-alive connection to corrupt the next request.
+- **Saving an edit to a connection that was removed meanwhile** says it
+  is gone, instead of looking saved and changing nothing.
+- **The last-tested time survives a culture with another calendar.** It
+  was read back in that calendar, which shifted the year or lost the
+  time.
+- **The migration from the old settings location** copies to a
+  temporary file first, so a copy that fails part-way no longer leaves
+  a truncated settings file in place.
+- **`db add --help` explains how to add a database,** as `status`
+  suggests, rather than failing over a missing `--name`. `db add` also
+  refuses a Firebird port outside 1 to 65535.
+- **The documentation matches the code.** A new API key takes effect
+  within a few seconds rather than immediately, the status-code table
+  lists `413`, and the test table lists every test class.
+
 ## [1.1.0] - 2026-09-04
 
 ### Added

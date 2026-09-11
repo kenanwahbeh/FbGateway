@@ -47,11 +47,22 @@ public static class Program
          */
         builder.Services.AddSingleton(provider =>
         {
+            /*
+             * SqliteDatabase locks its folder down itself, which is what
+             * covers the control panel and the command line as well. The
+             * service is where a failure to do so can still be read
+             * afterwards, so it is sent to the event log from here.
+             */
             var database = new SqliteDatabase();
 
-            DataFolderSecurity.Ensure(
-                Path.GetDirectoryName(database.LogDirectory)!,
-                provider.GetRequiredService<ILogger<GatewayWorker>>());
+            if (database.PermissionsError != null)
+            {
+                provider.GetRequiredService<ILogger<GatewayWorker>>().LogWarning(
+                    database.PermissionsError,
+                    "Could not restrict permissions on {Folder}. "
+                    + "It may be readable by other accounts on this machine.",
+                    database.DataDirectory);
+            }
 
             return database;
         });
