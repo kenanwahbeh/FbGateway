@@ -42,6 +42,13 @@ public static class Cli
         restarting.
         """;
 
+    private const string AddUsage = """
+        db add --name <n> --server <host> --path <file>
+               --user <u> --password <p> [--port <3050>]
+
+        --port is the Firebird server's port, and defaults to 3050.
+        """;
+
     /*
      * Returns the process exit code, or null when the arguments are not
      * a command at all, which is the signal to run as a service.
@@ -61,13 +68,33 @@ public static class Cli
 
         try
         {
-            return Dispatch(args, database ?? new SqliteDatabase());
+            return Dispatch(args, database ?? Open());
         }
         catch (Exception error)
         {
             Console.Error.WriteLine("error: " + error.Message);
             return 1;
         }
+    }
+
+    /*
+     * On a machine with no desktop this can be the first thing to create
+     * the settings folder, and it writes a key and passwords into it, so
+     * a folder it could not lock down is worth a line on the console
+     * rather than silence.
+     */
+    private static SqliteDatabase Open()
+    {
+        var database = new SqliteDatabase();
+
+        if (database.PermissionsError != null)
+        {
+            Console.Error.WriteLine(
+                $"warning: could not restrict permissions on {database.DataDirectory}: "
+                + database.PermissionsError.Message);
+        }
+
+        return database;
     }
 
     private static int Dispatch(string[] args, SqliteDatabase database) =>
@@ -209,7 +236,28 @@ public static class Cli
             return 1;
         }
 
-        var found = database.FindConnection(args[2]);
+        var found = database.FindConnection(args[2], out var sharedName);
+
+        /*
+         * Enabling, disabling or removing whichever of two same-named
+         * databases sorted first is a guess, and removing the wrong one
+         * is not undoable. The ids tell them apart, and an id is always
+         * accepted in place of the name.
+         */
+        if (sharedName.Count > 1)
+        {
+            Console.Error.WriteLine(
+                $"error: more than one database is called '{args[2]}'. "
+                + "Name the one you mean by its id:");
+
+            foreach (var match in sharedName)
+            {
+                Console.Error.WriteLine(
+                    $"  {match.Id}  {match.Server}:{match.Port}  {match.Database}");
+            }
+
+            return 1;
+        }
 
         if (found == null)
         {
@@ -244,6 +292,17 @@ public static class Cli
     {
         var options = Options(args, 2);
 
+        /*
+         * "db add --help" is what status suggests when nothing is
+         * configured, so it has to answer with how to add one rather
+         * than complain that --name is missing.
+         */
+        if (options.ContainsKey("help"))
+        {
+            Console.WriteLine(AddUsage);
+            return 0;
+        }
+
         string? Required(string name)
         {
             if (options.TryGetValue(name, out var value)
@@ -271,9 +330,9 @@ public static class Cli
         var port = 3050;
 
         if (options.TryGetValue("port", out var portText)
-            && !int.TryParse(portText, out port))
+            && (!int.TryParse(portText, out port) || port is < 1 or > 65535))
         {
-            Console.Error.WriteLine("error: --port takes a number.");
+            Console.Error.WriteLine("error: --port takes a number from 1 to 65535.");
             return 1;
         }
 

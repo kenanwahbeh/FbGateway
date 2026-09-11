@@ -109,7 +109,7 @@ machine with a desktop you never need any of this.
    ```
 
    ```json
-   { "status": "ok", "service": "EasyFbSoft", "connections": 1, "online": 1 }
+   { "status": "ok", "service": "EasyFbSoft", "connections": 1, "online": 1, ... }
    ```
 
 6. **Query.**
@@ -142,8 +142,9 @@ API key as a database credential.
 - Every endpoint except `/health` requires the key, in `X-API-Key` or
   as `Authorization: Bearer`. It is 32 random bytes, generated on first
   run and compared in constant time.
-- **New Key** rotates it immediately, without restarting the gateway.
-  Every client using the old key stops working at once.
+- **New Key** rotates it without restarting the gateway. The running
+  gateway picks the new key up within a few seconds, and from then on
+  every client still sending the old one is refused.
 - Send values in `parameters`, never concatenated into `sql`; they are
   bound as Firebird parameters, so a value cannot become SQL.
 - `/query` refuses anything that is not a `SELECT` or `WITH`, so a read
@@ -192,9 +193,13 @@ connections of whoever is running it.
 | ---- | -------------- |
 | `GatewayServerTests` | Routing, the API key, CORS, body validation, the read-only guard, the size cap, and that an early reply leaves the connection usable. |
 | `GatewayLifecycleTests` | Start, stop, restart, a port already in use, key rotation, and connection changes taking effect without a restart. |
-| `SqliteDatabaseTests` | Storage, duplicate detection, gateway settings, and the migration from the pre-rename location. |
+| `SqliteDatabaseTests` | Storage, duplicate details and names, gateway settings including the loopback-only host, a key rotation surviving another writer's save, and the migration from the pre-rename location. |
 | `FirebirdExecutorTests` | The read-only guard on its own, including comments, word boundaries and unterminated blocks. |
 | `FirebirdIntegrationTests` | A real server end to end: type mapping, NULLs, UTF-8, parameter binding, the row cap, writes, and concurrency. |
+| `CliTests` | The Server Core commands: status, on and off, the port, showing and replacing the key, and adding, enabling, disabling and removing a database. |
+| `RequestLogTests` | The log file itself: one JSON line per request, parameter values kept out, long statements truncated, concurrent writes, and pruning old files. |
+| `RequestLoggingTests` | The log as the running gateway fills it: served and refused requests, the statement and connection, the forwarded client address, and every request landing exactly once under load. |
+| `SharedDatabaseTests` | The settings file open in two processes at once: WAL mode, one seeing what the other wrote, a write waiting for a lock, and both writing together. |
 
 `FirebirdIntegrationTests` is skipped unless you point it at a server,
 so a fresh clone still gets a green run:

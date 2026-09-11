@@ -9,9 +9,10 @@ namespace FbGateway.Service;
  *
  * The installer cannot simply reserve the port once, because the port
  * is a setting: change it in the control panel and the old reservation
- * covers nothing. So the service reserves whatever prefix it is asked
- * to bind, at the moment it is refused. It runs as Local System, which
- * is allowed to do this; the control panel never has to.
+ * covers nothing. So the service reserves the prefix it is asked to
+ * bind, at the moment it is refused -- and only ever a loopback one. It
+ * runs as Local System, which is allowed to do this; the control panel
+ * never has to.
  */
 public static class UrlReservation
 {
@@ -28,13 +29,43 @@ public static class UrlReservation
 
     public static bool TryAdd(string prefix, ILogger logger)
     {
+        /*
+         * Only ever a loopback prefix. The settings loader already
+         * refuses anything else, but this runs as Local System and hands
+         * the prefix to netsh, so it checks for itself rather than
+         * trusting that it was asked for something sensible.
+         */
+        if (!Uri.TryCreate(prefix, UriKind.Absolute, out var uri)
+            || uri.Scheme != Uri.UriSchemeHttp
+            || !uri.IsLoopback)
+        {
+            logger.LogWarning(
+                "Refusing to reserve {Prefix}: only a loopback address is ever reserved.",
+                prefix);
+
+            return false;
+        }
+
         try
         {
             var process = Process.Start(new ProcessStartInfo
             {
                 FileName = "netsh.exe",
-                Arguments =
-                    $"http add urlacl url={prefix} sddl={LocalSystemMayListen}",
+
+                /*
+                 * As separate arguments, so the runtime quotes each one
+                 * and nothing inside the prefix can turn into another
+                 * netsh parameter.
+                 */
+                ArgumentList =
+                {
+                    "http",
+                    "add",
+                    "urlacl",
+                    $"url={prefix}",
+                    $"sddl={LocalSystemMayListen}"
+                },
+
                 UseShellExecute = false,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,

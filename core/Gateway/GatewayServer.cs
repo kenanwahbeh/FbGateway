@@ -238,18 +238,37 @@ public sealed class GatewayServer : IDisposable
             {
                 context = await listener.GetContextAsync();
             }
-            catch (HttpListenerException)
+            catch (Exception) when (
+                cancellationToken.IsCancellationRequested
+                || !listener.IsListening)
             {
                 // The listener was stopped.
                 return;
             }
-            catch (ObjectDisposedException)
+            catch (Exception)
             {
-                return;
-            }
-            catch (InvalidOperationException)
-            {
-                return;
+                /*
+                 * Anything else, on a listener that is still started, is
+                 * about one connection rather than the listener. This
+                 * loop used to return on it, which ended accepting for
+                 * good while IsRunning still said true: the service saw a
+                 * healthy gateway and never rebound it, and every request
+                 * after that queued with nothing to take it. So it keeps
+                 * accepting, after a pause that stops a failure that
+                 * repeats from spinning.
+                 */
+                try
+                {
+                    await Task.Delay(
+                        TimeSpan.FromMilliseconds(100),
+                        cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    return;
+                }
+
+                continue;
             }
 
             _ = Task.Run(
@@ -311,6 +330,14 @@ public sealed class GatewayServer : IDisposable
                     return;
                 }
 
+                /*
+                 * Nothing on this path reads a body, so whatever a caller
+                 * sent is drained first, the same as every refusal below.
+                 * Left in the connection it would corrupt the next
+                 * request on it.
+                 */
+                await DrainOrCloseAsync(context);
+
                 await WriteHealthAsync(context);
                 return;
             }
@@ -340,6 +367,9 @@ public sealed class GatewayServer : IDisposable
                         await WriteMethodNotAllowedAsync(context, "GET");
                         return;
                     }
+
+                    // No body is read here either; see /health above.
+                    await DrainOrCloseAsync(context);
 
                     await WriteJsonAsync(
                         context,
@@ -607,7 +637,25 @@ public sealed class GatewayServer : IDisposable
         }
 
         var connection =
-            _database.FindConnection(identifier);
+            _database.FindConnection(identifier, out var sharedName);
+
+        /*
+         * A name two connections share, from a settings file written
+         * before names had to be unique. Picking either would run the
+         * statement -- a write, even -- against a database the caller
+         * may never have meant, so the caller is sent to the ids.
+         */
+        if (sharedName.Count > 1)
+        {
+            await WriteJsonAsync(
+                context,
+                400,
+                new ErrorResponse(
+                    $"\"{identifier}\" is the name of {sharedName.Count} connections. " +
+                    "Send the id of the one you mean; GET /databases lists them."));
+
+            return null;
+        }
 
         if (connection == null)
         {
@@ -724,9 +772,14 @@ public sealed class GatewayServer : IDisposable
                 total += read;
             }
         }
-        catch (IOException)
+        catch (Exception error)
+            when (error is IOException or HttpListenerException)
         {
-            // The caller went away mid-body; nothing left to tidy.
+            /*
+             * The caller went away mid-body; nothing left to tidy. On
+             * Windows that surfaces as an HttpListenerException rather
+             * than an IOException, which is why both are caught.
+             */
         }
 
         context.Response.KeepAlive = false;
@@ -825,47 +878,67 @@ public sealed class GatewayServer : IDisposable
 
         var exceeded = false;
 
-        while (true)
+        try
         {
-            var read =
-                await context.Request.InputStream.ReadAsync(chunk);
-
-            if (read == 0)
+            while (true)
             {
-                break;
-            }
+                var read =
+                    await context.Request.InputStream.ReadAsync(chunk);
 
-            total += read;
-
-            /*
-             * Past the cap the body is drained but no longer
-             * stored, so memory stays flat while the client is
-             * still allowed to finish sending.
-             *
-             * Closing the response mid-upload instead would reset
-             * the connection, and the caller would see a broken
-             * pipe -- a 502 through a tunnel -- rather than the
-             * 413 that explains what actually went wrong.
-             */
-            if (total > MaxRequestBytes)
-            {
-                exceeded = true;
-
-                /*
-                 * Past this point the sender is no longer worth
-                 * draining; drop the connection instead.
-                 */
-                if (total > MaxDrainBytes)
+                if (read == 0)
                 {
-                    context.Response.KeepAlive = false;
-
-                    return tooLarge;
+                    break;
                 }
 
-                continue;
-            }
+                total += read;
 
-            buffer.Write(chunk, 0, read);
+                /*
+                 * Past the cap the body is drained but no longer
+                 * stored, so memory stays flat while the client is
+                 * still allowed to finish sending.
+                 *
+                 * Closing the response mid-upload instead would reset
+                 * the connection, and the caller would see a broken
+                 * pipe -- a 502 through a tunnel -- rather than the
+                 * 413 that explains what actually went wrong.
+                 */
+                if (total > MaxRequestBytes)
+                {
+                    exceeded = true;
+
+                    /*
+                     * Past this point the sender is no longer worth
+                     * draining; drop the connection instead.
+                     */
+                    if (total > MaxDrainBytes)
+                    {
+                        context.Response.KeepAlive = false;
+
+                        return tooLarge;
+                    }
+
+                    continue;
+                }
+
+                buffer.Write(chunk, 0, read);
+            }
+        }
+        catch (Exception error)
+            when (error is IOException or HttpListenerException)
+        {
+            /*
+             * The caller went away part-way through the body. That is a
+             * truncated request, not a fault in the gateway, so it is
+             * answered and logged as one instead of falling through to
+             * the 500 handler. Windows reports it as an
+             * HttpListenerException, other platforms as an IOException.
+             */
+            context.Response.KeepAlive = false;
+
+            return new BodyResult<T>(
+                default,
+                400,
+                "The request body ended before it was fully received.");
         }
 
         if (exceeded)

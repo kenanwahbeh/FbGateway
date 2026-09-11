@@ -1,6 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics.CodeAnalysis;
+using System.Globalization;
 using System.IO;
+using System.Net;
+using System.Net.Sockets;
 using System.Security.Cryptography;
 using Microsoft.Data.Sqlite;
 using FbGateway.Configuration;
@@ -9,14 +13,34 @@ namespace FbGateway.Data;
 
 public class SqliteDatabase
 {
+    private const string UpsertSetting = """
+        INSERT INTO Settings (SettingKey, SettingValue)
+        VALUES ($key, $value)
+        ON CONFLICT(SettingKey) DO UPDATE
+            SET SettingValue = excluded.SettingValue;
+        """;
+
     private readonly string _databasePath;
     private readonly string _connectionString;
+
+    /*
+     * The folder holding the settings file and the request log.
+     */
+    public string DataDirectory { get; }
 
     /*
      * Where the request log is kept, beside the settings file so both
      * live under one folder an operator can find and back up.
      */
     public string LogDirectory { get; }
+
+    /*
+     * Why the folder could not be locked down, when it could not. Null
+     * when it was, and whenever there was nothing to lock down. The
+     * service and the command line report it; nothing refuses to run
+     * over it.
+     */
+    public Exception? PermissionsError { get; }
 
     public SqliteDatabase()
         : this(null)
@@ -40,6 +64,25 @@ public class SqliteDatabase
             Path.Combine(commonData, "EasyFbSoft");
 
         Directory.CreateDirectory(directory);
+
+        /*
+         * Locked down before anything is written into it. The control
+         * panel and the command line can each be the first to create
+         * this folder, and the first thing either does is mint an API
+         * key into it -- the command line may write a Firebird password
+         * too -- so protecting it only when the service started left
+         * that file readable by every account until then, and for good
+         * on a machine where the service never ran.
+         *
+         * Only for a real install: a test passes its own temporary root,
+         * and has no business changing the permissions on it.
+         */
+        if (dataRoot == null && OperatingSystem.IsWindows())
+        {
+            PermissionsError = DataFolderSecurity.Ensure(directory);
+        }
+
+        DataDirectory = directory;
 
         _databasePath =
             Path.Combine(directory, "easyfbsoft.db");
@@ -78,9 +121,21 @@ public class SqliteDatabase
             return;
         }
 
+        /*
+         * Copied under a temporary name and moved into place only once
+         * the copy has finished. File.Copy is not atomic, so a copy that
+         * failed part-way straight onto the real name left a truncated
+         * file there: opening it failed or came back missing rows, and
+         * the File.Exists check above took it for a finished migration
+         * on every later start.
+         */
+        var partial = _databasePath + ".migrating";
+
         try
         {
-            File.Copy(legacy, _databasePath);
+            File.Delete(partial);
+
+            File.Copy(legacy, partial);
 
             /*
              * File.Copy carries the source's attributes across, so a
@@ -89,16 +144,34 @@ public class SqliteDatabase
              * read-only and make every later write fail with
              * "attempt to write a readonly database".
              */
-            var copied = new FileInfo(_databasePath);
+            var copied = new FileInfo(partial);
 
             if (copied.IsReadOnly)
             {
                 copied.IsReadOnly = false;
             }
+
+            File.Move(partial, _databasePath);
         }
         catch (IOException)
         {
             // Start with an empty database rather than failing to open.
+            TryDelete(partial);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            TryDelete(partial);
+        }
+    }
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (IOException)
+        {
         }
         catch (UnauthorizedAccessException)
         {
@@ -207,9 +280,19 @@ public class SqliteDatabase
         {
             DateTime? testedAt = null;
 
+            /*
+             * Written with the round-trip "O" format, which is
+             * culture-invariant and always Gregorian, so it is read back
+             * the same way. Read with the machine's culture instead, the
+             * year was taken in that culture's calendar, which shifts it
+             * or rejects it outright, and a rejected time was then lost
+             * for good on the next save.
+             */
             if (!reader.IsDBNull(9) &&
                 DateTime.TryParse(
                     reader.GetString(9),
+                    CultureInfo.InvariantCulture,
+                    DateTimeStyles.RoundtripKind,
                     out var parsedDate))
             {
                 testedAt = parsedDate;
@@ -260,6 +343,44 @@ public class SqliteDatabase
             command.ExecuteScalar()) > 0;
     }
 
+    /*
+     * Requests address a connection by its name, so two connections
+     * sharing one name left "database": "Sales" meaning whichever of
+     * them happened to sort first. Compared the way FindConnection
+     * compares, so any two names this lets through are two names a
+     * request can tell apart.
+     */
+    private bool NameInUse(string name, string? excludeId)
+    {
+        var wanted = name.Trim();
+
+        foreach (var existing in GetConnections())
+        {
+            if (excludeId != null &&
+                string.Equals(
+                    existing.Id,
+                    excludeId,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (string.Equals(
+                    existing.Name.Trim(),
+                    wanted,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string NameInUseMessage(string name) =>
+        $"Another database connection is already named \"{name.Trim()}\". " +
+        "Requests pick a connection by its name, so each one needs its own.";
+
     public void AddConnection(
         DatabaseConfig database)
     {
@@ -267,6 +388,12 @@ public class SqliteDatabase
         {
             throw new InvalidOperationException(
                 "This database connection already exists.");
+        }
+
+        if (NameInUse(database.Name, excludeId: null))
+        {
+            throw new InvalidOperationException(
+                NameInUseMessage(database.Name));
         }
 
         using var connection = OpenConnection();
@@ -329,6 +456,12 @@ public class SqliteDatabase
                 "Another database connection with the same connection details already exists.");
         }
 
+        if (NameInUse(database.Name, database.Id))
+        {
+            throw new InvalidOperationException(
+                NameInUseMessage(database.Name));
+        }
+
         using var connection = OpenConnection();
         using var command = connection.CreateCommand();
 
@@ -350,9 +483,11 @@ public class SqliteDatabase
 
         AddParameters(command, database);
 
+        int affected;
+
         try
         {
-            command.ExecuteNonQuery();
+            affected = command.ExecuteNonQuery();
         }
         catch (SqliteException ex)
             when (ex.SqliteErrorCode == 19)
@@ -360,6 +495,19 @@ public class SqliteDatabase
             throw new InvalidOperationException(
                 "Another database connection with the same connection details already exists.",
                 ex);
+        }
+
+        /*
+         * Nothing matched: the connection was removed, from the command
+         * line or another window, while this edit was open. Reported
+         * rather than swallowed, or the edit would vanish while looking
+         * saved.
+         */
+        if (affected == 0)
+        {
+            throw new InvalidOperationException(
+                $"\"{database.Name}\" no longer exists. It may have been " +
+                "removed from another window or from the command line.");
         }
     }
 
@@ -439,8 +587,26 @@ public class SqliteDatabase
      * its Name, because the Id is a GUID nobody wants to type
      * into a request body by hand.
      */
-    public DatabaseConfig? FindConnection(string identifier)
+    public DatabaseConfig? FindConnection(string identifier) =>
+        FindConnection(identifier, out _);
+
+    /*
+     * As above, and reports a name that belongs to more than one
+     * connection instead of picking one of them.
+     *
+     * Names are unique now, but a settings file from before that was
+     * enforced can still hold two connections under one name. Returning
+     * whichever sorted first would have sent a request -- a write, even
+     * -- to a database the caller never meant. So nothing is returned,
+     * and sharedName holds the candidates, which lets a caller say why
+     * and point at their ids instead.
+     */
+    public DatabaseConfig? FindConnection(
+        string identifier,
+        out IReadOnlyList<DatabaseConfig> sharedName)
     {
+        sharedName = Array.Empty<DatabaseConfig>();
+
         if (string.IsNullOrWhiteSpace(identifier))
         {
             return null;
@@ -461,15 +627,27 @@ public class SqliteDatabase
             }
         }
 
+        var matches = new List<DatabaseConfig>();
+
         foreach (var connection in connections)
         {
             if (string.Equals(
-                    connection.Name,
+                    connection.Name.Trim(),
                     trimmed,
                     StringComparison.OrdinalIgnoreCase))
             {
-                return connection;
+                matches.Add(connection);
             }
+        }
+
+        if (matches.Count == 1)
+        {
+            return matches[0];
+        }
+
+        if (matches.Count > 1)
+        {
+            sharedName = matches;
         }
 
         return null;
@@ -496,12 +674,7 @@ public class SqliteDatabase
         using var connection = OpenConnection();
         using var command = connection.CreateCommand();
 
-        command.CommandText = """
-            INSERT INTO Settings (SettingKey, SettingValue)
-            VALUES ($key, $value)
-            ON CONFLICT(SettingKey) DO UPDATE
-                SET SettingValue = excluded.SettingValue;
-            """;
+        command.CommandText = UpsertSetting;
 
         command.Parameters.AddWithValue("$key", key);
         command.Parameters.AddWithValue("$value", value);
@@ -522,9 +695,17 @@ public class SqliteDatabase
 
         var host = GetSetting("Gateway.Host");
 
-        if (!string.IsNullOrWhiteSpace(host))
+        /*
+         * Only a loopback address is taken from the file. Nothing in the
+         * app writes anything else, but a value that got in regardless --
+         * "+", "0.0.0.0", a LAN address -- used to be bound as it was,
+         * and the service reserves whatever prefix it is refused, so the
+         * gateway would have been served on every interface. The same
+         * value also ends up on netsh's command line.
+         */
+        if (IsLoopbackHost(host))
         {
-            config.Host = host;
+            config.Host = host.Trim();
         }
 
         if (int.TryParse(
@@ -569,27 +750,83 @@ public class SqliteDatabase
         return config;
     }
 
+    private static bool IsLoopbackHost(
+        [NotNullWhen(true)] string? host)
+    {
+        if (string.IsNullOrWhiteSpace(host))
+        {
+            return false;
+        }
+
+        var trimmed = host.Trim();
+
+        if (string.Equals(
+                trimmed,
+                "localhost",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        /*
+         * Canonical dotted IPv4 only. IPAddress.TryParse also accepts
+         * "127.1" and a bare integer, which name a loopback address but
+         * make a strange prefix, and an IPv6 address would need brackets
+         * the prefix does not add.
+         */
+        return IPAddress.TryParse(trimmed, out var address)
+            && address.AddressFamily == AddressFamily.InterNetwork
+            && IPAddress.IsLoopback(address)
+            && address.ToString() == trimmed;
+    }
+
+    /*
+     * Writes the listener settings in one transaction, so a failure
+     * part-way cannot leave a new port beside an old on/off switch for
+     * the service to pick up.
+     *
+     * The API key is deliberately not among them. Every caller reads the
+     * whole config, changes one field and saves it back, and the control
+     * panel, the command line and the service all share this file, so a
+     * key rotated between someone's read and their save used to be
+     * written straight back over, undoing the rotation with nothing
+     * reported. The key has its own writer, RegenerateApiKey.
+     */
     public void SaveGatewayConfig(GatewayConfig config)
     {
-        SetSetting("Gateway.Host", config.Host);
+        var settings = new[]
+        {
+            ("Gateway.Host", config.Host),
 
-        SetSetting(
-            "Gateway.Port",
-            config.Port.ToString());
+            ("Gateway.Port",
+                config.Port.ToString(CultureInfo.InvariantCulture)),
 
-        SetSetting(
-            "Gateway.MaxRows",
-            config.MaxRows.ToString());
+            ("Gateway.MaxRows",
+                config.MaxRows.ToString(CultureInfo.InvariantCulture)),
 
-        SetSetting(
-            "Gateway.CommandTimeoutSeconds",
-            config.CommandTimeoutSeconds.ToString());
+            ("Gateway.CommandTimeoutSeconds",
+                config.CommandTimeoutSeconds.ToString(CultureInfo.InvariantCulture)),
 
-        SetSetting(
-            "Gateway.AutoStart",
-            config.AutoStart ? "1" : "0");
+            ("Gateway.AutoStart", config.AutoStart ? "1" : "0")
+        };
 
-        SetSetting("Gateway.ApiKey", config.ApiKey);
+        using var connection = OpenConnection();
+        using var transaction = connection.BeginTransaction();
+
+        foreach (var (key, value) in settings)
+        {
+            using var command = connection.CreateCommand();
+
+            command.Transaction = transaction;
+            command.CommandText = UpsertSetting;
+
+            command.Parameters.AddWithValue("$key", key);
+            command.Parameters.AddWithValue("$value", value);
+
+            command.ExecuteNonQuery();
+        }
+
+        transaction.Commit();
     }
 
     public string RegenerateApiKey()

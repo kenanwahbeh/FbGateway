@@ -349,4 +349,232 @@ public class SqliteDatabaseTests
         Assert.Empty(database.GetConnections());
         Assert.NotEmpty(database.GetGatewayConfig().ApiKey);
     }
+
+    [Fact]
+    public void A_half_copied_file_left_by_an_earlier_attempt_does_not_stop_the_migration()
+    {
+        using var root = new TempDataRoot();
+
+        SeedLegacyFile(root, Sample(name: "Legacy Sales"));
+
+        var partial = root.CurrentDatabasePath + ".migrating";
+
+        File.WriteAllText(partial, "not a database");
+
+        var migrated = Assert.Single(root.OpenDatabase().GetConnections());
+
+        Assert.Equal("Legacy Sales", migrated.Name);
+        Assert.False(File.Exists(partial));
+    }
+
+    // ---- The listener stays on loopback ---------------------------------
+
+    [Theory]
+    [InlineData("+")]
+    [InlineData("*")]
+    [InlineData("0.0.0.0")]
+    [InlineData("192.168.1.10")]
+    [InlineData("127.1")]
+    [InlineData("127.0.0.1/ sddl=D:(A;;GX;;;WD) url=http://+:8080/")]
+    public void A_stored_host_that_is_not_loopback_falls_back_to_loopback(string stored)
+    {
+        using var root = new TempDataRoot();
+
+        root.OpenDatabase().SetSetting("Gateway.Host", stored);
+
+        Assert.Equal("127.0.0.1", root.OpenDatabase().GetGatewayConfig().Host);
+    }
+
+    [Theory]
+    [InlineData("127.0.0.2")]
+    [InlineData("localhost")]
+    public void A_stored_loopback_host_is_kept(string stored)
+    {
+        using var root = new TempDataRoot();
+
+        root.OpenDatabase().SetSetting("Gateway.Host", stored);
+
+        Assert.Equal(stored, root.OpenDatabase().GetGatewayConfig().Host);
+    }
+
+    // ---- Two writers, one file -------------------------------------------
+
+    [Fact]
+    public void Saving_settings_does_not_undo_a_key_rotation_made_meanwhile()
+    {
+        using var root = new TempDataRoot();
+
+        var panel = root.OpenDatabase();
+        var commandLine = root.OpenDatabase();
+
+        // The panel reads, the command line rotates, the panel saves.
+        var config = panel.GetGatewayConfig();
+
+        var rotated = commandLine.RegenerateApiKey();
+
+        config.Port = 9292;
+        panel.SaveGatewayConfig(config);
+
+        var reloaded = root.OpenDatabase().GetGatewayConfig();
+
+        Assert.Equal(rotated, reloaded.ApiKey);
+        Assert.Equal(9292, reloaded.Port);
+    }
+
+    [Fact]
+    public void Saving_an_edit_to_a_connection_that_was_removed_fails()
+    {
+        using var root = new TempDataRoot();
+        var database = root.OpenDatabase();
+
+        database.AddConnection(Sample());
+
+        var stale = database.GetConnections()[0];
+
+        database.DeleteConnection(stale.Id);
+
+        stale.Server = "10.0.0.5";
+
+        Assert.Throws<InvalidOperationException>(
+            () => database.UpdateConnection(stale));
+
+        Assert.Empty(database.GetConnections());
+    }
+
+    [Fact]
+    public void The_last_test_time_survives_a_culture_with_another_calendar()
+    {
+        using var root = new TempDataRoot();
+        var database = root.OpenDatabase();
+
+        var connection = Sample();
+        database.AddConnection(connection);
+        database.SetTestResult(connection.Id, true);
+
+        var original = System.Globalization.CultureInfo.CurrentCulture;
+
+        var thai = (System.Globalization.CultureInfo)
+            System.Globalization.CultureInfo.GetCultureInfo("th-TH").Clone();
+
+        thai.DateTimeFormat.Calendar =
+            new System.Globalization.ThaiBuddhistCalendar();
+
+        try
+        {
+            System.Globalization.CultureInfo.CurrentCulture = thai;
+
+            var stored = database.GetConnections()[0];
+
+            Assert.NotNull(stored.LastTestedAt);
+            Assert.Equal(DateTime.Now.Year, stored.LastTestedAt!.Value.Year);
+        }
+        finally
+        {
+            System.Globalization.CultureInfo.CurrentCulture = original;
+        }
+    }
+
+    // ---- Names address connections ---------------------------------------
+
+    [Fact]
+    public void A_name_already_in_use_cannot_be_added_again()
+    {
+        using var root = new TempDataRoot();
+        var database = root.OpenDatabase();
+
+        database.AddConnection(Sample(name: "Sales", database: "/data/sales.fdb"));
+
+        Assert.Throws<InvalidOperationException>(
+            () => database.AddConnection(
+                Sample(name: "SALES", database: "/data/other.fdb")));
+
+        Assert.Single(database.GetConnections());
+    }
+
+    [Fact]
+    public void An_edit_cannot_take_a_name_another_connection_has()
+    {
+        using var root = new TempDataRoot();
+        var database = root.OpenDatabase();
+
+        database.AddConnection(Sample(name: "Sales", database: "/data/sales.fdb"));
+        database.AddConnection(Sample(name: "Archive", database: "/data/archive.fdb"));
+
+        var archive = database.GetConnections().Single(c => c.Name == "Archive");
+
+        archive.Name = "sales";
+
+        Assert.Throws<InvalidOperationException>(
+            () => database.UpdateConnection(archive));
+    }
+
+    [Fact]
+    public void An_edit_can_keep_its_own_name()
+    {
+        using var root = new TempDataRoot();
+        var database = root.OpenDatabase();
+
+        database.AddConnection(Sample());
+
+        var stored = database.GetConnections()[0];
+
+        stored.Server = "10.0.0.5";
+
+        database.UpdateConnection(stored);
+
+        Assert.Equal("10.0.0.5", database.GetConnections()[0].Server);
+    }
+
+    [Fact]
+    public void A_name_shared_by_two_connections_resolves_to_neither()
+    {
+        using var root = new TempDataRoot();
+        var database = root.OpenDatabase();
+
+        database.AddConnection(Sample(name: "Sales", database: "/data/sales.fdb"));
+
+        // As a settings file from before names had to be unique could hold.
+        var second = Sample(name: "Sales", database: "/data/sales-2023.fdb");
+
+        InsertBypassingChecks(root, second);
+
+        Assert.Null(database.FindConnection("Sales"));
+
+        database.FindConnection("sales", out var sharedName);
+
+        Assert.Equal(2, sharedName.Count);
+
+        // The id still reaches the one that was meant.
+        Assert.NotNull(database.FindConnection(second.Id));
+    }
+
+    private static void InsertBypassingChecks(TempDataRoot root, DatabaseConfig connection)
+    {
+        using var sqlite = new Microsoft.Data.Sqlite.SqliteConnection(
+            $"Data Source={root.CurrentDatabasePath}");
+
+        sqlite.Open();
+
+        using var command = sqlite.CreateCommand();
+
+        command.CommandText = """
+            INSERT INTO Databases
+                (Id, Name, Server, Port, Username, Password, DatabaseValue,
+                 Enabled, LastTestSuccessful, LastTestedAt, ConnectionKey)
+            VALUES
+                ($id, $name, $server, $port, $user, $password, $database,
+                 1, 0, NULL, $key);
+            """;
+
+        command.Parameters.AddWithValue("$id", connection.Id);
+        command.Parameters.AddWithValue("$name", connection.Name);
+        command.Parameters.AddWithValue("$server", connection.Server);
+        command.Parameters.AddWithValue("$port", connection.Port);
+        command.Parameters.AddWithValue("$user", connection.Username);
+        command.Parameters.AddWithValue("$password", connection.Password);
+        command.Parameters.AddWithValue("$database", connection.Database);
+        command.Parameters.AddWithValue("$key", connection.ConnectionKey);
+
+        command.ExecuteNonQuery();
+    }
 }

@@ -383,6 +383,35 @@ public class GatewayServerTests : IClassFixture<GatewayHarness>
         Assert.Equal(HttpStatusCode.OK, status);
     }
 
+    /*
+     * The two GETs that succeed used to answer without reading a body
+     * they were sent: the one path left that did, after the refusals
+     * above were fixed.
+     */
+    [Theory]
+    [InlineData("/health")]
+    [InlineData("/databases")]
+    public async Task A_get_that_carries_a_body_leaves_the_connection_usable(string path)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Get, path)
+        {
+            Content = new StringContent(
+                new string('x', 8 * 1024),
+                System.Text.Encoding.UTF8,
+                "application/json")
+        };
+
+        request.Headers.Add("X-API-Key", _gateway.ApiKey);
+
+        using var response = await _gateway.Client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var (status, _) = await GatewayHarness.Read(_gateway.Get("/health", key: ""));
+
+        Assert.Equal(HttpStatusCode.OK, status);
+    }
+
     [Fact]
     public async Task A_body_just_under_the_cap_is_accepted()
     {

@@ -253,4 +253,65 @@ public class CliTests
             Assert.Contains("db add", output);
         }
     }
+
+    [Fact]
+    public void Db_add_help_explains_how_to_add_one()
+    {
+        using var root = new TempDataRoot();
+        var database = root.OpenDatabase();
+
+        // What status suggests when nothing is configured.
+        var (code, output, _) = Run(database, "db", "add", "--help");
+
+        Assert.Equal(0, code);
+        Assert.Contains("--password", output);
+        Assert.Empty(database.GetConnections());
+    }
+
+    [Theory]
+    [InlineData("0")]
+    [InlineData("70000")]
+    public void Db_add_refuses_a_firebird_port_outside_the_valid_range(string port)
+    {
+        using var root = new TempDataRoot();
+        var database = root.OpenDatabase();
+
+        var (code, _, error) = Run(
+            database, "db", "add",
+            "--name", "Sales",
+            "--server", "127.0.0.1",
+            "--path", "/data/sales.fdb",
+            "--user", "SYSDBA",
+            "--password", "secret",
+            "--port", port);
+
+        Assert.Equal(1, code);
+        Assert.Contains("1 to 65535", error);
+        Assert.Empty(database.GetConnections());
+    }
+
+    [Fact]
+    public void Db_add_refuses_a_name_already_in_use()
+    {
+        using var root = new TempDataRoot();
+        var database = root.OpenDatabase();
+
+        string[] Add(string path) =>
+        [
+            "db", "add",
+            "--name", "Sales",
+            "--server", "127.0.0.1",
+            "--path", path,
+            "--user", "SYSDBA",
+            "--password", "secret"
+        ];
+
+        Assert.Equal(0, Run(database, Add("/data/sales.fdb")).Code);
+
+        var (code, _, error) = Run(database, Add("/data/other.fdb"));
+
+        Assert.Equal(1, code);
+        Assert.Contains("already named", error);
+        Assert.Single(database.GetConnections());
+    }
 }
