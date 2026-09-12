@@ -16,13 +16,10 @@
     stamps. Company and Product show up in the installed program's
     Add/Remove Programs entry and in the file properties.
 
-    The C# namespaces are still FbGateway; only the product name and
-    the built executable were renamed, so there is no source churn
-    behind the rename.
   -->
   <PropertyGroup>
     <AssemblyName>ByteBridge</AssemblyName>
-    <RootNamespace>FbGateway</RootNamespace>
+    <RootNamespace>ByteBridge</RootNamespace>
     <Product>ByteBridge</Product>
     <Company>ByteBridge</Company>
     <Description>HTTP gateway for Firebird databases</Description>
@@ -33,7 +30,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="core/EasyFbSoft.Core.csproj" />
+    <ProjectReference Include="core/ByteBridge.Core.csproj" />
   </ItemGroup>
 
   <ItemGroup>

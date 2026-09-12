@@ -11,10 +11,10 @@ using System.Text.Unicode;
 using System.Threading;
 using System.Threading.Tasks;
 using FirebirdSql.Data.FirebirdClient;
-using FbGateway.Configuration;
-using FbGateway.Data;
+using ByteBridge.Configuration;
+using ByteBridge.Data;
 
-namespace FbGateway.Gateway;
+namespace ByteBridge.Gateway;
 
 /*
  * The HTTP front door for the configured Firebird databases.

@@ -1,4 +1,4 @@
-namespace FbGateway.Configuration;
+namespace ByteBridge.Configuration;
 
 /*
  * Configuration for Cloudflare Access OAuth integration.

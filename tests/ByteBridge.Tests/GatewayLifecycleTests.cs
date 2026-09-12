@@ -1,7 +1,7 @@
 using System.Net;
 using Xunit;
 
-namespace FbGateway.Tests;
+namespace ByteBridge.Tests;
 
 /*
  * Cases that change the gateway's own state, so each gets a fresh

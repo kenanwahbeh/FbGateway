@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/tests/">
+    <Project Path="tests/ByteBridge.Tests/ByteBridge.Tests.csproj" />
+  </Folder>
+  <Project Path="core/ByteBridge.Core.csproj" />
+  <Project Path="service/ByteBridge.Service.csproj" />
+  <Project Path="ByteBridge.csproj" />
+</Solution>

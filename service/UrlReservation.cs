@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 
-namespace FbGateway.Service;
+namespace ByteBridge.Service;
 
 /*
  * HTTP.SYS will not let a process listen on a prefix it has no

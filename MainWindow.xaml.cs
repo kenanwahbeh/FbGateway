@@ -6,12 +6,12 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Threading;
 using FirebirdSql.Data.FirebirdClient;
-using FbGateway.Configuration;
-using FbGateway.Data;
-using FbGateway.Gateway;
-using FbGateway.Localization;
+using ByteBridge.Configuration;
+using ByteBridge.Data;
+using ByteBridge.Gateway;
+using ByteBridge.Localization;
 
-namespace FbGateway;
+namespace ByteBridge;
 
 public partial class MainWindow : Window
 {

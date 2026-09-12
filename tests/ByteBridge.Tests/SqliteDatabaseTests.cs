@@ -1,8 +1,8 @@
 using Xunit;
-using FbGateway.Configuration;
-using FbGateway.Data;
+using ByteBridge.Configuration;
+using ByteBridge.Data;
 
-namespace FbGateway.Tests;
+namespace ByteBridge.Tests;
 
 public class SqliteDatabaseTests
 {
@@ -258,116 +258,8 @@ public class SqliteDatabaseTests
         Assert.Equal(8080, root.OpenDatabase().GetGatewayConfig().Port);
     }
 
-    // ---- Migration from the pre-rename location -----------------------
-
-    private static void SeedLegacyFile(TempDataRoot root, DatabaseConfig connection)
-    {
-        // Build a real database at the current path, then move it to
-        // where a build from before the rename would have left it.
-        var seeded = root.OpenDatabase();
-        seeded.AddConnection(connection);
-
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-
-        Directory.CreateDirectory(Path.GetDirectoryName(root.LegacyDatabasePath)!);
-        File.Move(root.CurrentDatabasePath, root.LegacyDatabasePath);
-    }
-
-    private static void SeedPreviousFile(TempDataRoot root, DatabaseConfig connection)
-    {
-        // Same as above, but for the EasyFbSoft name the app shipped
-        // under before it became ByteBridge.
-        var seeded = root.OpenDatabase();
-        seeded.AddConnection(connection);
-
-        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
-
-        Directory.CreateDirectory(Path.GetDirectoryName(root.PreviousDatabasePath)!);
-        File.Move(root.CurrentDatabasePath, root.PreviousDatabasePath);
-    }
-
     [Fact]
-    public void A_legacy_settings_file_is_carried_over()
-    {
-        using var root = new TempDataRoot();
-
-        SeedLegacyFile(root, Sample(name: "Legacy Sales"));
-
-        var migrated = Assert.Single(root.OpenDatabase().GetConnections());
-
-        Assert.Equal("Legacy Sales", migrated.Name);
-        Assert.Equal("secret", migrated.Password);
-    }
-
-    [Fact]
-    public void A_previous_name_settings_file_is_carried_over()
-    {
-        using var root = new TempDataRoot();
-
-        SeedPreviousFile(root, Sample(name: "Previous Sales"));
-
-        var migrated = Assert.Single(root.OpenDatabase().GetConnections());
-
-        Assert.Equal("Previous Sales", migrated.Name);
-        Assert.Equal("secret", migrated.Password);
-        Assert.True(File.Exists(root.PreviousDatabasePath));
-    }
-
-    [Fact]
-    public void The_legacy_file_is_left_behind_as_a_backup()
-    {
-        using var root = new TempDataRoot();
-
-        SeedLegacyFile(root, Sample());
-
-        root.OpenDatabase();
-
-        Assert.True(File.Exists(root.LegacyDatabasePath));
-        Assert.True(File.Exists(root.CurrentDatabasePath));
-    }
-
-    [Fact]
-    public void Migration_does_not_run_again_over_live_data()
-    {
-        using var root = new TempDataRoot();
-
-        SeedLegacyFile(root, Sample(name: "Legacy Sales"));
-
-        var database = root.OpenDatabase();
-        database.AddConnection(Sample(name: "Added Later", database: "/data/later.fdb"));
-
-        // A later start must keep both rows, not restore the legacy file.
-        Assert.Equal(2, root.OpenDatabase().GetConnections().Count);
-    }
-
-    [Fact]
-    public void A_read_only_legacy_file_migrates_to_a_writable_copy()
-    {
-        using var root = new TempDataRoot();
-
-        SeedLegacyFile(root, Sample(name: "Legacy Sales"));
-
-        new FileInfo(root.LegacyDatabasePath).IsReadOnly = true;
-
-        try
-        {
-            var database = root.OpenDatabase();
-
-            Assert.False(new FileInfo(root.CurrentDatabasePath).IsReadOnly);
-
-            // The real point: the copy accepts writes.
-            database.AddConnection(Sample(name: "Writes Work", database: "/data/w.fdb"));
-
-            Assert.Equal(2, database.GetConnections().Count);
-        }
-        finally
-        {
-            new FileInfo(root.LegacyDatabasePath).IsReadOnly = false;
-        }
-    }
-
-    [Fact]
-    public void With_no_legacy_file_a_clean_install_still_works()
+    public void A_clean_install_creates_a_working_database()
     {
         using var root = new TempDataRoot();
 
@@ -375,23 +267,6 @@ public class SqliteDatabaseTests
 
         Assert.Empty(database.GetConnections());
         Assert.NotEmpty(database.GetGatewayConfig().ApiKey);
-    }
-
-    [Fact]
-    public void A_half_copied_file_left_by_an_earlier_attempt_does_not_stop_the_migration()
-    {
-        using var root = new TempDataRoot();
-
-        SeedLegacyFile(root, Sample(name: "Legacy Sales"));
-
-        var partial = root.CurrentDatabasePath + ".migrating";
-
-        File.WriteAllText(partial, "not a database");
-
-        var migrated = Assert.Single(root.OpenDatabase().GetConnections());
-
-        Assert.Equal("Legacy Sales", migrated.Name);
-        Assert.False(File.Exists(partial));
     }
 
     // ---- The listener stays on loopback ---------------------------------

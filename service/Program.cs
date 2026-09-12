@@ -1,11 +1,11 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using FbGateway.Data;
-using FbGateway.Gateway;
-using FbGateway.Admin;
+using ByteBridge.Data;
+using ByteBridge.Gateway;
+using ByteBridge.Admin;
 
-namespace FbGateway.Service;
+namespace ByteBridge.Service;
 
 /*
  * One executable, two jobs.

@@ -1,11 +1,11 @@
 using System.Net;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using FbGateway.Configuration;
-using FbGateway.Data;
-using FbGateway.Gateway;
+using ByteBridge.Configuration;
+using ByteBridge.Data;
+using ByteBridge.Gateway;
 
-namespace FbGateway.Service;
+namespace ByteBridge.Service;
 
 /*
  * Hosts the gateway for as long as the service runs, and keeps it in

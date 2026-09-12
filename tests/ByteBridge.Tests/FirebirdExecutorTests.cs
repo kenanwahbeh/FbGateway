@@ -1,7 +1,7 @@
 using Xunit;
-using FbGateway.Gateway;
+using ByteBridge.Gateway;
 
-namespace FbGateway.Tests;
+namespace ByteBridge.Tests;
 
 /*
  * The read-only guard, on its own.

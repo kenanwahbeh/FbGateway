@@ -9,9 +9,9 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.IdentityModel.Tokens;
-using FbGateway.Configuration;
+using ByteBridge.Configuration;
 
-namespace FbGateway.Gateway;
+namespace ByteBridge.Gateway;
 
 /*
  * Validates JWT tokens issued by Cloudflare Access.

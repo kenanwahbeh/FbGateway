@@ -2,7 +2,7 @@ using System.Runtime.Versioning;
 using System.Security.AccessControl;
 using System.Security.Principal;
 
-namespace FbGateway.Data;
+namespace ByteBridge.Data;
 
 /*
  * Locks down the folder holding the settings file.

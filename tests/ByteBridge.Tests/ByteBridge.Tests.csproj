@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <IsPackable>false</IsPackable>
-    <RootNamespace>FbGateway.Tests</RootNamespace>
+    <RootNamespace>ByteBridge.Tests</RootNamespace>
   </PropertyGroup>
 
   <ItemGroup>
@@ -21,7 +21,7 @@
     library targets net10.0, so that problem is gone.
   -->
   <ItemGroup>
-    <ProjectReference Include="../../core/EasyFbSoft.Core.csproj" />
+    <ProjectReference Include="../../core/ByteBridge.Core.csproj" />
   </ItemGroup>
 
 </Project>

@@ -2,11 +2,11 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Win32;
-using FbGateway.Configuration;
-using FbGateway.Data;
-using FbGateway.Localization;
+using ByteBridge.Configuration;
+using ByteBridge.Data;
+using ByteBridge.Localization;
 
-namespace FbGateway;
+namespace ByteBridge;
 
 public partial class SettingsWindow : Window
 {

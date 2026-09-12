@@ -2,7 +2,7 @@ using System.Net;
 using System.Text.Json;
 using Xunit;
 
-namespace FbGateway.Tests;
+namespace ByteBridge.Tests;
 
 /*
  * The log as the running server actually fills it in, rather than as a

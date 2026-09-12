@@ -1,8 +1,8 @@
 using System;
 using System.Windows;
-using FbGateway.Localization;
+using ByteBridge.Localization;
 
-namespace FbGateway;
+namespace ByteBridge;
 
 public partial class CloseDialogWindow : Window
 {
