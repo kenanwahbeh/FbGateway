@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using System.Text.Json;
 
-namespace FbGateway.Gateway;
+namespace ByteBridge.Gateway;
 
 public class QueryRequest
 {

@@ -35,7 +35,7 @@
 #define ServiceExe   "ByteBridge.Service.exe"
 #define ServiceName  "ByteBridge"
 #define ServiceLabel "ByteBridge Gateway"
-#define AppUrl       "https://github.com/kenanwahbeh/FbGateway"
+#define AppUrl       "https://github.com/kenanwahbeh/ByteBridge"
 
 ; Prerequisites Setup can fetch on the customer's machine. Both are
 ; official vendor URLs that always point at the current build, so no

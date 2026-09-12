@@ -16,7 +16,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
-    <RootNamespace>FbGateway</RootNamespace>
+    <RootNamespace>ByteBridge</RootNamespace>
     <AssemblyName>ByteBridge.Core</AssemblyName>
   </PropertyGroup>
 
@@ -34,7 +34,7 @@
     this is a real library they need to be let in explicitly.
   -->
   <ItemGroup>
-    <InternalsVisibleTo Include="EasyFbSoft.Tests" />
+    <InternalsVisibleTo Include="ByteBridge.Tests" />
   </ItemGroup>
 
 </Project>

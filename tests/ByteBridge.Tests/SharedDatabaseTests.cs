@@ -1,10 +1,10 @@
 using System.Collections.Concurrent;
 using Microsoft.Data.Sqlite;
 using Xunit;
-using FbGateway.Configuration;
-using FbGateway.Data;
+using ByteBridge.Configuration;
+using ByteBridge.Data;
 
-namespace FbGateway.Tests;
+namespace ByteBridge.Tests;
 
 /*
  * The gateway moved into a Windows service, so the settings file is now

@@ -1,7 +1,7 @@
 using System.Net;
 using Xunit;
 
-namespace FbGateway.Tests;
+namespace ByteBridge.Tests;
 
 /*
  * The HTTP surface, over a real listener on a real socket.

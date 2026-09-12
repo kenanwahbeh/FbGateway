@@ -1,9 +1,9 @@
 using System;
 using System.Security.Cryptography;
 using System.Text;
-using FbGateway.Configuration;
+using ByteBridge.Configuration;
 
-namespace FbGateway.Gateway;
+namespace ByteBridge.Gateway;
 
 /*
  * Manages OAuth sessions for the gateway.

@@ -1,6 +1,6 @@
 using System;
 
-namespace FbGateway.Configuration;
+namespace ByteBridge.Configuration;
 
 public class DatabaseConfig
 {

@@ -1,4 +1,4 @@
-namespace FbGateway.Configuration;
+namespace ByteBridge.Configuration;
 
 public class GatewayConfig
 {

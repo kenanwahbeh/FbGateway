@@ -44,7 +44,7 @@ jobs:
       # tests skip here, as they do in CI.
       - name: Test
         shell: pwsh
-        run: dotnet test tests/EasyFbSoft.Tests/EasyFbSoft.Tests.csproj -c Release
+        run: dotnet test tests/ByteBridge.Tests/ByteBridge.Tests.csproj -c Release
 
       - name: Resolve version
         id: version
@@ -77,12 +77,12 @@ jobs:
 
           # publish    -> .NET bundled, runs on a bare machine
           # publish-fx -> needs the .NET Desktop Runtime installed
-          dotnet publish EasyFbSoft.csproj `
+          dotnet publish ByteBridge.csproj `
             -c Release -r win-x64 --self-contained true `
             -p:Version=${{ steps.version.outputs.msiVersion }} `
             -o publish
 
-          dotnet publish EasyFbSoft.csproj `
+          dotnet publish ByteBridge.csproj `
             -c Release -r win-x64 --self-contained false `
             -p:Version=${{ steps.version.outputs.msiVersion }} `
             -o publish-fx
@@ -90,12 +90,12 @@ jobs:
           # The service goes into the same folders as the control panel.
           # They share the core library, and the per-app files are named
           # after their assembly, so nothing collides.
-          dotnet publish service/EasyFbSoft.Service.csproj `
+          dotnet publish service/ByteBridge.Service.csproj `
             -c Release -r win-x64 --self-contained true `
             -p:Version=${{ steps.version.outputs.msiVersion }} `
             -o publish
 
-          dotnet publish service/EasyFbSoft.Service.csproj `
+          dotnet publish service/ByteBridge.Service.csproj `
             -c Release -r win-x64 --self-contained false `
             -p:Version=${{ steps.version.outputs.msiVersion }} `
             -o publish-fx

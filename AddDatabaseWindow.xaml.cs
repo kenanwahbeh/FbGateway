@@ -4,9 +4,9 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using FirebirdSql.Data.FirebirdClient;
-using FbGateway.Configuration;
+using ByteBridge.Configuration;
 
-namespace FbGateway;
+namespace ByteBridge;
 
 public partial class AddDatabaseWindow : Window
 {

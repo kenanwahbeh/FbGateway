@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Threading;
 
-namespace FbGateway.Localization;
+namespace ByteBridge.Localization;
 
 /*
  * Simple localization manager for Arabic and English.

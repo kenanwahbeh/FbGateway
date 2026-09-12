@@ -3,11 +3,11 @@ using System.Net.Http.Json;
 using System.Net.Sockets;
 using Microsoft.Data.Sqlite;
 using Xunit;
-using FbGateway.Configuration;
-using FbGateway.Data;
-using FbGateway.Gateway;
+using ByteBridge.Configuration;
+using ByteBridge.Data;
+using ByteBridge.Gateway;
 
-namespace FbGateway.Tests;
+namespace ByteBridge.Tests;
 
 /*
  * A throwaway settings folder.
@@ -31,18 +31,6 @@ public sealed class TempDataRoot : IDisposable
     }
 
     public SqliteDatabase OpenDatabase() => new(Path);
-
-    /*
-     * The path a build from before the rename would have written to.
-     */
-    public string LegacyDatabasePath =>
-        System.IO.Path.Combine(Path, "FbGateway", "fbgateway.db");
-
-    /*
-     * The path a build shipped as EasyFbSoft would have written to.
-     */
-    public string PreviousDatabasePath =>
-        System.IO.Path.Combine(Path, "EasyFbSoft", "easyfbsoft.db");
 
     public string CurrentDatabasePath =>
         System.IO.Path.Combine(Path, "ByteBridge", "bytebridge.db");

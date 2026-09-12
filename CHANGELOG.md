@@ -57,9 +57,6 @@ file is the single source of truth for what shipped.
 - **The last-tested time survives a culture with another calendar.** It
   was read back in that calendar, which shifted the year or lost the
   time.
-- **The migration from the old settings location** copies to a
-  temporary file first, so a copy that fails part-way no longer leaves
-  a truncated settings file in place.
 - **`db add --help` explains how to add a database,** as `status`
   suggests, rather than failing over a missing `--name`. `db add` also
   refuses a Firebird port outside 1 to 65535.
@@ -215,6 +212,6 @@ file is the single source of truth for what shipped.
   `C:\ProgramData\FbGateway`, are carried over automatically on first
   start; the old files are left behind as backups.
 
-[Unreleased]: https://github.com/kenanwahbeh/FbGateway/compare/v1.1.0...HEAD
-[1.1.0]: https://github.com/kenanwahbeh/FbGateway/compare/v1.0.0...v1.1.0
-[1.0.0]: https://github.com/kenanwahbeh/FbGateway/releases/tag/v1.0.0
+[Unreleased]: https://github.com/kenanwahbeh/ByteBridge/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/kenanwahbeh/ByteBridge/compare/v1.0.0...v1.1.0
+[1.0.0]: https://github.com/kenanwahbeh/ByteBridge/releases/tag/v1.0.0

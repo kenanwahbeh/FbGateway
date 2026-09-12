@@ -54,7 +54,7 @@ cloudflared tunnel --url http://127.0.0.1:8080
 Copy the API key from the same panel — every endpoint except `/health`
 requires it in the `X-API-Key` header.
 
-See [GATEWAY.md](https://github.com/kenanwahbeh/FbGateway/blob/{{TAG}}/GATEWAY.md)
+See [GATEWAY.md](https://github.com/kenanwahbeh/ByteBridge/blob/{{TAG}}/GATEWAY.md)
 for the endpoints and the tunnel configuration.
 
 ### Verifying the download

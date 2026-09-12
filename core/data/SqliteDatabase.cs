@@ -7,9 +7,9 @@ using System.Net;
 using System.Net.Sockets;
 using System.Security.Cryptography;
 using Microsoft.Data.Sqlite;
-using FbGateway.Configuration;
+using ByteBridge.Configuration;
 
-namespace FbGateway.Data;
+namespace ByteBridge.Data;
 
 public class SqliteDatabase
 {
@@ -50,8 +50,7 @@ public class SqliteDatabase
     /*
      * dataRoot replaces the folder the app stores under, which is
      * CommonApplicationData in a real install. Tests pass a temporary
-     * directory so they never touch a machine's real settings, and so
-     * the legacy path the migration reads from can be set up too.
+     * directory so they never touch a machine's real settings.
      */
     public SqliteDatabase(string? dataRoot)
     {
@@ -89,105 +88,10 @@ public class SqliteDatabase
 
         LogDirectory = Path.Combine(directory, "logs");
 
-        MigrateLegacyDatabase(commonData);
-
         _connectionString =
             $"Data Source={_databasePath}";
 
         Initialize();
-    }
-
-    /*
-     * Carries over the settings file from the names the app shipped
-     * under before it became ByteBridge.
-     *
-     * The old file is copied rather than moved, so it stays behind as
-     * a backup and a failed copy cannot lose the only copy of
-     * someone's connections. Runs only when there is no current file,
-     * which makes it a no-op on every later start.
-     */
-    private void MigrateLegacyDatabase(string commonData)
-    {
-        if (File.Exists(_databasePath))
-        {
-            return;
-        }
-
-        /*
-         * Newest first: a machine that ran every generation has all
-         * three, and the EasyFbSoft one is the live settings.
-         */
-        var candidates = new[]
-        {
-            Path.Combine(commonData, "EasyFbSoft", "easyfbsoft.db"),
-            Path.Combine(commonData, "FbGateway", "fbgateway.db")
-        };
-
-        foreach (var legacy in candidates)
-        {
-            if (!File.Exists(legacy))
-            {
-                continue;
-            }
-
-            /*
-             * Copied under a temporary name and moved into place only once
-             * the copy has finished. File.Copy is not atomic, so a copy that
-             * failed part-way straight onto the real name left a truncated
-             * file there: opening it failed or came back missing rows, and
-             * the File.Exists check above took it for a finished migration
-             * on every later start.
-             */
-            var partial = _databasePath + ".migrating";
-
-            try
-            {
-                File.Delete(partial);
-
-                File.Copy(legacy, partial);
-
-                /*
-                 * File.Copy carries the source's attributes across, so a
-                 * legacy file that had been marked read-only -- restored
-                 * from a backup, or copied off a share -- would arrive
-                 * read-only and make every later write fail with
-                 * "attempt to write a readonly database".
-                 */
-                var copied = new FileInfo(partial);
-
-                if (copied.IsReadOnly)
-                {
-                    copied.IsReadOnly = false;
-                }
-
-                File.Move(partial, _databasePath);
-            }
-            catch (IOException)
-            {
-                // Start with an empty database rather than failing to open.
-                TryDelete(partial);
-            }
-            catch (UnauthorizedAccessException)
-            {
-                TryDelete(partial);
-            }
-
-            return;
-        }
-    }
-
-    private static void TryDelete(string path)
-    {
-        try
-        {
-            File.Delete(path);
-        }
-        catch (IOException)
-        {
-        }
-        catch (UnauthorizedAccessException)
-        {
-        }
     }
 
     /*

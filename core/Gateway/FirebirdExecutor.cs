@@ -5,9 +5,9 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using FirebirdSql.Data.FirebirdClient;
-using FbGateway.Configuration;
+using ByteBridge.Configuration;
 
-namespace FbGateway.Gateway;
+namespace ByteBridge.Gateway;
 
 internal static class FirebirdExecutor
 {

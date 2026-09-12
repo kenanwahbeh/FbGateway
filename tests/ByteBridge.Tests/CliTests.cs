@@ -1,9 +1,9 @@
 using Xunit;
-using FbGateway.Admin;
-using FbGateway.Configuration;
-using FbGateway.Data;
+using ByteBridge.Admin;
+using ByteBridge.Configuration;
+using ByteBridge.Data;
 
-namespace FbGateway.Tests;
+namespace ByteBridge.Tests;
 
 /*
  * On Windows Server Core there is no desktop, so the WPF control panel

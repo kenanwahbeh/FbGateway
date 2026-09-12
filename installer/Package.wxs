@@ -35,8 +35,8 @@
     <Icon Id="AppIcon" SourceFile="installer/EasyFbSoft.ico" />
 
     <Property Id="ARPPRODUCTICON" Value="AppIcon" />
-    <Property Id="ARPHELPLINK" Value="https://github.com/kenanwahbeh/FbGateway" />
-    <Property Id="ARPURLINFOABOUT" Value="https://github.com/kenanwahbeh/FbGateway" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/kenanwahbeh/ByteBridge" />
+    <Property Id="ARPURLINFOABOUT" Value="https://github.com/kenanwahbeh/ByteBridge" />
 
     <!--
       An OS floor, nothing more. Server Core is now a supported target:

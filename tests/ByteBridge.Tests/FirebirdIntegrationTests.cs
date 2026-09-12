@@ -1,9 +1,9 @@
 using System.Net;
 using System.Text.Json;
 using Xunit;
-using FbGateway.Gateway;
+using ByteBridge.Gateway;
 
-namespace FbGateway.Tests;
+namespace ByteBridge.Tests;
 
 /*
  * End to end against a real Firebird server: HTTP in, rows out.

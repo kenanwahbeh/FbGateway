@@ -24,7 +24,7 @@ loopback.
 ## Install
 
 Grab an installer from the
-[latest release](https://github.com/kenanwahbeh/FbGateway/releases/latest).
+[latest release](https://github.com/kenanwahbeh/ByteBridge/releases/latest).
 
 | File | .NET | Use it when |
 | ---- | ---- | ----------- |
@@ -182,7 +182,7 @@ and Inno Setup both only run on Windows.
 ## Tests
 
 ```
-dotnet test tests/EasyFbSoft.Tests
+dotnet test tests/ByteBridge.Tests
 ```
 
 The suite drives the gateway over a real socket on a spare port, with
@@ -193,7 +193,7 @@ connections of whoever is running it.
 | ---- | -------------- |
 | `GatewayServerTests` | Routing, the API key, CORS, body validation, the read-only guard, the size cap, and that an early reply leaves the connection usable. |
 | `GatewayLifecycleTests` | Start, stop, restart, a port already in use, key rotation, and connection changes taking effect without a restart. |
-| `SqliteDatabaseTests` | Storage, duplicate details and names, gateway settings including the loopback-only host, a key rotation surviving another writer's save, and the migration from the pre-rename location. |
+| `SqliteDatabaseTests` | Storage, duplicate details and names, gateway settings including the loopback-only host, and a key rotation surviving another writer's save. |
 | `FirebirdExecutorTests` | The read-only guard on its own, including comments, word boundaries and unterminated blocks. |
 | `FirebirdIntegrationTests` | A real server end to end: type mapping, NULLs, UTF-8, parameter binding, the row cap, writes, and concurrency. |
 | `CliTests` | The Server Core commands: status, on and off, the port, showing and replacing the key, and adding, enabling, disabling and removing a database. |
@@ -206,7 +206,7 @@ so a fresh clone still gets a green run:
 
 ```powershell
 $env:BYTEBRIDGE_TEST_FIREBIRD = "127.0.0.1:3050:SYSDBA:masterkey:C:\db\test.fdb"
-dotnet test tests/EasyFbSoft.Tests
+dotnet test tests/ByteBridge.Tests
 ```
 
 It creates its own `EFS_TEST_CUSTOMERS` table and works only on rows it

@@ -1,7 +1,7 @@
-using FbGateway.Configuration;
-using FbGateway.Data;
+using ByteBridge.Configuration;
+using ByteBridge.Data;
 
-namespace FbGateway.Admin;
+namespace ByteBridge.Admin;
 
 /*
  * Administration without a desktop.

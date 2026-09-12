@@ -6,7 +6,7 @@ using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Unicode;
 
-namespace FbGateway.Gateway;
+namespace ByteBridge.Gateway;
 
 /*
  * What a request was and how it ended.

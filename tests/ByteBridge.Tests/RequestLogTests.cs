@@ -1,8 +1,8 @@
 using System.Text.Json;
 using Xunit;
-using FbGateway.Gateway;
+using ByteBridge.Gateway;
 
-namespace FbGateway.Tests;
+namespace ByteBridge.Tests;
 
 public class RequestLogTests
 {
